@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#eeeae3" />
+    <title>林见秋 / In Motion</title>
+    <link rel="stylesheet" href="lin-gallery.css?v=20260829-2" />
+  </head>
+  <body>
+    <main class="gallery-shell" aria-label="林见秋人物影像展廊">
+      <div class="desktop-frame" id="desktop-frame">
+          <canvas id="gallery-canvas" tabindex="0" aria-label="3D 影像卡片展廊。悬停查看，点击打开"></canvas>
+
+        <div class="screen-ui">
+          <header class="topbar">
+            <button class="wordmark person-switch-button" type="button" data-open-person aria-expanded="false" aria-controls="person-panel" aria-label="切换人物">
+              <span data-current-person-code>LIN / JQ</span>
+              <span class="person-caret" aria-hidden="true">↗</span>
+            </button>
+            <div class="topbar-meta">
+              <span>人物影像档案</span>
+              <button class="text-button" type="button" data-open-contact>联系</button>
+              <button class="text-button" type="button" data-open-about>关于</button>
+              <button class="menu-button" type="button" data-open-menu aria-expanded="false">目录 <span class="menu-lines" aria-hidden="true"></span></button>
+            </div>
+          </header>
+
+          <section class="hero-copy" id="top" aria-labelledby="hero-title">
+            <div class="hero-rail" aria-hidden="true">
+              <span data-hero-index>01 - 08</span>
+              <span class="hero-rail-line"></span>
+              <span>ARCHIVE / IN MOTION</span>
+            </div>
+            <p class="hero-note" data-hero-note><span>一个持续生长的人物视觉世界。</span><span>每一帧都是下一次进入的入口。</span></p>
+            <h1 id="hero-title"><span data-hero-name>LIN JIANQIU</span><span data-hero-mode>IN MOTION</span></h1>
+          </section>
+
+          <div class="orbit-label orbit-label-left" aria-hidden="true" data-current-person-name>林见秋</div>
+          <div class="orbit-label orbit-label-right" aria-hidden="true">滚轮 / 拖动<br />探索合集</div>
+
+          <div class="edge-ui edge-ui-left" aria-hidden="true">
+            <span data-edge-index>INDEX 01</span>
+            <i></i>
+            <span>JQ / 2026</span>
+          </div>
+          <div class="edge-ui edge-ui-right" aria-hidden="true">
+            <span>ARCHIVE</span>
+            <i></i>
+            <span data-edge-range>01—08</span>
+          </div>
+
+          <div class="stage-status" aria-live="polite">
+            <span class="status-rule"></span>
+            <span data-current-title>肖像研究</span>
+            <span class="status-count" data-current-count>01 / 08</span>
+          </div>
+
+          <div class="webgl-fallback" data-fallback aria-hidden="true">
+            <div class="fallback-card fallback-card-left"><span>图片<br />位置</span></div>
+            <div class="fallback-card fallback-card-center"><span>图片<br />位置</span><small>后续添加最终图片</small></div>
+            <div class="fallback-card fallback-card-right"><span>图片<br />位置</span></div>
+            <p class="fallback-note">三维视图暂不可用<br /><small>静态档案预览</small></p>
+          </div>
+
+          <footer class="bottombar">
+            <span data-current-person-footer>© 2026 林见秋</span>
+            <span class="bottom-center" data-current-media-status>图片素材待补充</span>
+          </footer>
+        </div>
+
+        <div class="person-panel" id="person-panel" data-person-panel role="dialog" aria-modal="true" aria-labelledby="person-title" aria-hidden="true">
+          <div class="person-panel-head">
+            <span id="person-title">人物档案</span>
+            <button class="close-button" type="button" data-close-person aria-label="关闭人物切换">关闭</button>
+          </div>
+          <div class="person-options" data-person-list></div>
+          <p class="person-panel-note">切换人物后，展廊会保留同一套空间与动画。</p>
+        </div>
+
+        <div class="menu-panel" data-menu-panel role="dialog" aria-modal="true" aria-labelledby="menu-title" aria-hidden="true">
+          <div class="menu-panel-head">
+            <span id="menu-title">作品索引</span>
+            <button class="close-button" type="button" data-close-menu aria-label="关闭目录">关闭</button>
+          </div>
+          <nav aria-label="展廊索引" data-menu-list></nav>
+          <p class="menu-panel-note">选择一个合集进入详情，可在页面内继续整理照片与说明。</p>
+        </div>
+
+        <div class="detail-panel" data-detail-panel role="dialog" aria-modal="true" aria-labelledby="detail-title" aria-hidden="true">
+          <div class="detail-panel-inner">
+            <div class="detail-head">
+              <div class="detail-taxonomy-head">
+                <span data-detail-index>01 / 08</span>
+                <span class="detail-category" data-detail-category>人物肖像</span>
+                <span class="detail-photo-index" data-detail-photo-index>PHOTO 01 / 01</span>
+              </div>
+              <button class="close-button return-button" type="button" data-close-detail aria-label="返回作品索引">
+                <span>返回</span>
+                <span class="return-arrow" aria-hidden="true"></span>
+              </button>
+            </div>
+            <div class="detail-grid">
+                <div class="detail-visual">
+                  <div class="detail-photo-rail" data-detail-photo-rail aria-label="照片序号"></div>
+                  <div class="detail-slot" data-detail-slot aria-label="后续图片放置位置" tabindex="0">
+                    <span data-detail-slot-title>图片位置</span>
+                    <small data-detail-slot-note>把这一章节的最终图片放到这里</small>
+                  </div>
+                </div>
+              <div class="detail-copy">
+                <p class="detail-label" data-detail-label>肖像研究</p>
+                <h2 id="detail-title" data-detail-title>面部与目光</h2>
+                <p data-detail-description>以人物身份为中心的第一组影像。这里将承载最终肖像、拍摄说明与本组作品的视觉语气。</p>
+                <p class="detail-subtypes-label">子分类 · 选择一个进入</p>
+                <div class="detail-subtypes" data-detail-subtypes aria-label="合集子类型"></div>
+                <dl>
+                  <div><dt>分类</dt><dd data-detail-type>人物肖像</dd></div>
+                  <div><dt>状态</dt><dd data-detail-status>待补充 · 0 张照片</dd></div>
+                </dl></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="about-panel" data-about-panel role="dialog" aria-modal="true" aria-labelledby="about-title" aria-hidden="true">
+          <div class="about-panel-inner">
+            <div class="detail-head">
+              <span>关于影像档案</span>
+              <button class="close-button" type="button" data-close-about aria-label="关闭关于">关闭</button>
+            </div>
+            <p class="about-title" id="about-title">林见秋不是一张<br /><em>固定的</em>照片。</p>
+            <p class="about-copy">这是一个为人物、作品和持续生成的影像留下位置的官网框架。先让空间成立，再把每一张准确的照片放回它应该出现的位置。</p>
+          </div>
+        </div>
+
+        <div class="contact-panel" data-contact-panel role="dialog" aria-modal="true" aria-labelledby="contact-title" aria-hidden="true">
+          <div class="contact-panel-inner">
+            <div class="detail-head">
+              <span>合作联系</span>
+              <button class="close-button" type="button" data-close-contact aria-label="关闭联系">关闭</button>
+            </div>
+            <h2 id="contact-title">为下一次进入<br />留下一个入口。</h2>
+            <p>微信：JF0705_（备注来意）</p>
+            <button class="outline-action" type="button" data-close-contact>返回档案</button>
+          </div>
+        </div>
+
+        <div class="loading-state" data-loading>
+          <span class="loading-mark" aria-hidden="true"></span>
+          <span>正在加载影像空间</span>
+        </div>
+      </div>
+    </main>
+    <script src="lin-gallery-data.js?v=20260829-2"></script>
+    <script src="vendor/gsap.min.js?v=3.15.0"></script>
+    <script src="lin-gallery.js?v=20260829-2"></script>
+  </body>
+</html>
+
