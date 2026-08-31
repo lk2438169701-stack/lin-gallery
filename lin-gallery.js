@@ -1591,7 +1591,8 @@
   bindUI();
   applyTheme(localStorage.getItem('lin-gallery-theme') || 'light', false);
   authorizeDeveloperMode();
-  import('./vendor/three.module.min.js').catch(() => import('https://cdn.jsdelivr.net/npm/three@0.179.1/build/three.module.js')).then((THREE) => {
+  const threeModule = import('./vendor/three.module.min.js').catch(() => import('https://cdn.jsdelivr.net/npm/three@0.179.1/build/three.module.js'));
+  Promise.race([threeModule, new Promise((_, reject) => window.setTimeout(() => reject(new Error('Three.js load timeout')), 2800))]).then((THREE) => {
     try { createScene(THREE); } catch (_) { showFallback(); }
   }).catch(showFallback);
 })();
