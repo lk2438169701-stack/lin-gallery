@@ -1495,7 +1495,7 @@
     }
     document.querySelectorAll('[data-build-mode]').forEach((item) => { item.textContent = editorRequested ? '开发者编辑版' : '预览版'; });
     window.addEventListener('resize', setScale, { passive: true }); setScale();
-    window.addEventListener('pointermove', (event) => updateHeroParallax(event.clientX, event.clientY), { passive: true });
+    window.addEventListener('pointermove', (event) => { updateHeroParallax(event.clientX, event.clientY); if (activeBackgroundMode() === 'liquid') { document.documentElement.style.setProperty('--liquid-x', `${Math.round((event.clientX / Math.max(window.innerWidth, 1)) * 100)}%`); document.documentElement.style.setProperty('--liquid-y', `${Math.round((event.clientY / Math.max(window.innerHeight, 1)) * 100)}%`); } }, { passive: true });
     window.addEventListener('blur', () => updateHeroParallax(-1, -1), { passive: true });
     ui.themeToggle?.addEventListener('click', () => applyTheme(isDarkTheme() ? 'light' : 'dark'));
     ui.backgroundOpenButtons.forEach((button) => button.addEventListener('click', toggleBackgroundEditor));
