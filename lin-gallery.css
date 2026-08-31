@@ -100,6 +100,12 @@ html[data-developer-mode="true"] .build-mode { color: var(--accent); }
 .background-editor { position: absolute; top: 42px; left: 180px; z-index: 30; display: grid; gap: 10px; width: 320px; max-height: min(690px, calc(100dvh - 70px)); overflow-x: hidden; overflow-y: auto; padding: 14px; border: 1px solid var(--rule); background: color-mix(in srgb, var(--paper) 94%, transparent); box-shadow: 0 16px 34px rgba(21,21,21,.16); backdrop-filter: blur(12px); pointer-events: auto; scrollbar-width: thin; }
 .background-editor.is-root-editor { top: 70px; left: 222px; }
 .background-editor.is-detail-open { top: 70px; right: 42px; left: auto; z-index: 40; }
+.background-switcher { position: absolute; top: 42px; left: 285px; z-index: 31; display: grid; gap: 6px; width: 190px; padding: 10px; border: 1px solid var(--rule); background: color-mix(in srgb, var(--paper) 96%, transparent); box-shadow: 0 16px 34px rgba(21,21,21,.16); backdrop-filter: blur(12px); pointer-events: auto; }
+.background-switcher[hidden] { display: none; }
+.background-switcher button { display: grid; gap: 4px; padding: 9px 10px; border: 1px solid transparent; background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
+.background-switcher button:hover, .background-switcher button:focus-visible, .background-switcher button[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); outline: none; }
+.background-switcher strong { font-size: 10px; letter-spacing: .08em; }
+.background-switcher small { color: var(--muted); font-size: 9px; }
 .background-editor[hidden] { display: none; }
 .background-editor-head { display: flex; align-items: center; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid var(--rule); color: var(--ink); font-size: 10px; letter-spacing: .1em; }
 .background-editor-head button { border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 18px; line-height: 1; }
@@ -415,6 +421,7 @@ html[data-developer-mode="true"] .detail-edit-hint { display: block; }
   .desktop-frame[data-mobile="true"] .topbar-left .person-switch-button { margin-right: auto; }
   .desktop-frame[data-mobile="true"] .background-editor { left: 92px; width: 300px; max-height: calc(100svh - 86px); }
   .desktop-frame[data-mobile="true"] .background-editor.is-detail-open { left: 92px; right: auto; }
+  .desktop-frame[data-mobile="true"] .background-switcher { left: 142px; width: 180px; }
   .desktop-frame[data-mobile="true"] .orbit-label-right,
   .desktop-frame[data-mobile="true"] .bottom-center[data-current-media-status] { display: none; }
 

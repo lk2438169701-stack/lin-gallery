@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#eeeae3" />
     <title>林见秋 / In Motion</title>
-    <link rel="stylesheet" href="lin-gallery.css?v=20260831-2008" />
+    <link rel="stylesheet" href="lin-gallery.css?v=20260831-2042" />
   </head>
   <body>
     <main class="gallery-shell" aria-label="林见秋人物影像展廊">
@@ -23,8 +23,15 @@
                 <span class="theme-toggle-label">主题</span>
               </button>
               <button class="background-toggle" type="button" data-open-background-editor aria-expanded="false" aria-controls="background-editor">背景</button>
+              <button class="background-toggle background-switch-toggle" type="button" data-open-background-switcher aria-expanded="false" aria-controls="background-switcher">背景切换</button>
+              <div class="background-switcher" id="background-switcher" data-background-switcher hidden>
+                <button type="button" data-background-mode="liquid"><strong>Liquid Ether</strong><small>流体波纹 · 鼠标交互</small></button>
+                <button type="button" data-background-mode="aurora"><strong>Aurora</strong><small>极光渐变 · 色彩流动</small></button>
+                <button type="button" data-background-mode="silk"><strong>Silk</strong><small>丝绸波面 · 柔和动画</small></button>
+              </div>
               <div class="background-editor" id="background-editor" data-background-editor hidden>
                 <div class="background-editor-head"><strong>流体背景 · Liquid Ether</strong><button type="button" data-close-background-editor aria-label="关闭流体背景编辑器">×</button></div>
+                <div class="background-editor-section" data-background-section="liquid">
                 <label>颜色 1<input type="color" data-bg-color1 value="#5227FF" /></label>
                 <label>颜色 2<input type="color" data-bg-color2 value="#FF9FFC" /></label>
                 <label>颜色 3<input type="color" data-bg-color3 value="#B497CF" /></label>
@@ -42,7 +49,8 @@
                   <label>粘滞迭代<input type="range" min="1" max="64" step="1" value="32" data-bg-viscous-iterations /><output data-bg-viscous-iterations-value>32</output></label>
                 </div>
                 <button class="background-reset" type="button" data-reset-background>恢复默认</button>
-                <div class="background-editor-section">
+                </div>
+                <div class="background-editor-section" data-background-section="aurora">
                   <div class="background-editor-subhead"><strong>极光背景 · Aurora</strong><span>合集详情页</span></div>
                   <label>颜色 1<input type="color" data-aurora-color1 value="#7CFF67" /></label>
                   <label>颜色 2<input type="color" data-aurora-color2 value="#B497CF" /></label>
@@ -54,6 +62,17 @@
                     <label class="background-check"><span>浅色模式</span><input type="checkbox" data-aurora-light-mode /></label>
                   </div>
                   <button class="background-reset" type="button" data-reset-aurora>恢复 Aurora 默认</button>
+                </div>
+                <div class="background-editor-section" data-background-section="silk">
+                  <div class="background-editor-subhead"><strong>丝绸背景 · Silk</strong><span>主页背景</span></div>
+                  <label>颜色 1<input type="color" data-silk-color1 value="#6e5b9b" /></label>
+                  <label>颜色 2<input type="color" data-silk-color2 value="#f0c6dc" /></label>
+                  <label>颜色 3<input type="color" data-silk-color3 value="#eeeae3" /></label>
+                  <div class="background-editor-grid">
+                    <label>速度<input type="range" min="0.1" max="2" step="0.05" value="0.55" data-silk-speed /><output data-silk-speed-value>0.55</output></label>
+                    <label>柔和程度<input type="range" min="0.2" max="1.4" step="0.05" value="0.8" data-silk-softness /><output data-silk-softness-value>0.80</output></label>
+                  </div>
+                  <button class="background-reset" type="button" data-reset-silk>恢复 Silk 默认</button>
                 </div>
               </div>
             </div>
@@ -237,10 +256,11 @@
       </div>
       <canvas id="gallery-canvas" tabindex="0" aria-label="3D 影像卡片展廊。悬停查看，点击打开"></canvas>
     </main>
-    <script src="lin-gallery-data.js?v=20260831-2008"></script>
+    <script src="lin-gallery-data.js?v=20260831-2042"></script>
     <script src="vendor/gsap.min.js?v=3.15.0"></script>
-    <script src="gradient-waves.js?v=20260831-2008"></script>
-    <script src="aurora-background.js?v=20260831-2008"></script>
-    <script src="lin-gallery.js?v=20260831-2008"></script>
+    <script src="vendor/three.min.js"></script>
+    <script src="gradient-waves.js?v=20260831-2042"></script>
+    <script src="aurora-background.js?v=20260831-2042"></script>
+    <script src="lin-gallery.js?v=20260831-2042"></script>
   </body>
 </html>
