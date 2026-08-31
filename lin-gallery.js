@@ -61,6 +61,9 @@
     Object.entries(content?.people || {}).forEach(([personId, personOverride]) => {
       const person = result[personId];
       if (!person) return;
+      ['englishName', 'mode', 'note', 'footer', 'code'].forEach((key) => {
+        if (typeof personOverride[key] === 'string') person[key] = personOverride[key];
+      });
       Object.entries(personOverride.cards || {}).forEach(([cardKey, cardOverride]) => {
         const cardIndex = Number(cardKey);
         const card = Number.isInteger(cardIndex) ? person.cards[cardIndex] : person.cards.find((item) => item.label === cardKey || item.title === cardKey);
@@ -97,8 +100,62 @@
   let activePersonId = 'lin';
   let cards = people[activePersonId].cards;
   const AUTO_RESUME_DELAY = 2000;
-  const ORBIT_RADIUS = 4.55;
+  // Keep the outer cards inside the fixed WebGL viewport so the desktop frame
+  // never exposes a hard clipping seam at the left or right edge.
+  const ORBIT_RADIUS = 3.65;
   const PHOTO_CAROUSEL_INTERVAL = 4200;
+  const ANTIGRAVITY_CONFIG = Object.freeze({
+    count: 360,
+    color: 0xb73559,
+    size: 0.048,
+    spreadX: 11.5,
+    spreadY: 7.2,
+    depth: 2.8,
+    opacity: 0.64
+  });
+  const SILK_VERTEX_SHADER = `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `;
+  const SILK_FRAGMENT_SHADER = `
+    varying vec2 vUv;
+    uniform float uTime;
+    uniform vec3 uHorizonColor;
+    uniform vec3 uHighlightColor;
+    uniform vec3 uShadowColor;
+    uniform float uSpeed;
+    uniform float uScale;
+    uniform float uRotation;
+    uniform float uIntensity;
+    float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    float noise(vec2 p) {
+      vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+    }
+    vec2 rotateUv(vec2 uv, float angle) {
+      float c = cos(angle); float s = sin(angle);
+      return mat2(c, -s, s, c) * uv;
+    }
+    void main() {
+      vec2 uv = rotateUv((vUv - 0.5) * uScale, uRotation);
+      float t = uTime * uSpeed;
+      float n = noise(uv * 2.4 + vec2(t * .12, -t * .08));
+      float waveA = sin(uv.x * 4.4 + uv.y * 2.1 + sin(uv.y * 3.2 + t) * 1.4 + t);
+      float waveB = sin(uv.x * 2.2 - uv.y * 5.1 + cos(uv.x * 2.6 - t * .7) * 1.2 - t * .58);
+      float wave = waveA * .62 + waveB * .38 + (n - .5) * .55;
+      float ridge = smoothstep(.18, .92, abs(wave));
+      float highlight = smoothstep(.56, .98, wave) * ridge;
+      float shadow = smoothstep(.52, 1.0, -wave) * ridge;
+      vec3 color = mix(uHorizonColor, uShadowColor, shadow * .94);
+      color = mix(color, uHighlightColor, highlight * .88);
+      color = mix(uHorizonColor, color, clamp(uIntensity, 0.0, 1.0));
+      color += (n - .5) * .035;
+      gl_FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
+    }
+  `;
   let autoResumeTimer = null;
   let photoCarouselTimer = null;
   let photoTransitionTimer = null;
@@ -112,17 +169,92 @@
   let developerMode = false;
 
   const frame = document.getElementById('desktop-frame');
+  const shell = document.querySelector('.gallery-shell');
   const canvas = document.getElementById('gallery-canvas');
   const loading = document.querySelector('[data-loading]');
   const fallback = document.querySelector('[data-fallback]');
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-  const state = { progress: 0, target: 0, velocity: 0, last: performance.now(), down: false, pointerX: 0, pointerStartX: 0, pointerStartY: 0, pointerHitIndex: -1, dragScale: 1, dragSensitivity: .008, hoveredIndex: -1, cursorNdcX: 0, cursorNdcY: 0, auto: !reducedMotion.matches, activePanel: null, opener: null, switchProgress: 1, statusIndex: -1, closingPanel: false, panelTimeline: null, detailCardIndex: -1, detailSubtypeIndex: 0, detailPhotoIndex: 0, detailDrag: null, coverDrag: null };
-  const sceneState = { camera: null, cardGroup: null, raycaster: null, pointer: null, THREE: null };
+  const state = { progress: 0, target: 0, velocity: 0, last: performance.now(), down: false, pointerX: 0, pointerStartX: 0, pointerStartY: 0, pointerHitIndex: -1, dragScale: 1, dragSensitivity: .008, hoveredIndex: -1, cursorNdcX: 0, cursorNdcY: 0, particlePointerX: 0, particlePointerY: 0, particleTargetX: 0, particleTargetY: 0, auto: !reducedMotion.matches, activePanel: null, opener: null, switchProgress: 1, statusIndex: -1, closingPanel: false, panelTimeline: null, detailCardIndex: -1, detailSubtypeIndex: 0, detailPhotoIndex: 0, detailDrag: null, coverDrag: null, activeCardIndex: -1 };
+  const sceneState = { camera: null, cardGroup: null, raycaster: null, pointer: null, THREE: null, antigravity: null, renderer: null, floor: null, silk: null };
   const ui = {
-    title: document.querySelector('[data-current-title]'), count: document.querySelector('[data-current-count]'), mediaStatus: document.querySelector('[data-current-media-status]'), edgeIndex: document.querySelector('[data-edge-index]'), edgeRange: document.querySelector('[data-edge-range]'), menuPanel: document.querySelector('[data-menu-panel]'), menuButton: document.querySelector('[data-open-menu]'), menuList: document.querySelector('[data-menu-list]'), detailPanel: document.querySelector('[data-detail-panel]'), aboutPanel: document.querySelector('[data-about-panel]'), contactPanel: document.querySelector('[data-contact-panel]'), personPanel: document.querySelector('[data-person-panel]'), personButton: document.querySelector('[data-open-person]'), personList: document.querySelector('[data-person-list]'), personCode: document.querySelector('[data-current-person-code]'), personName: document.querySelector('[data-current-person-name]'), personFooter: document.querySelector('[data-current-person-footer]'), heroCopy: document.querySelector('.hero-copy'), heroRail: document.querySelector('.hero-rail'), heroIndex: document.querySelector('[data-hero-index]'), heroName: document.querySelector('[data-hero-name]'), heroMode: document.querySelector('[data-hero-mode]'), heroNote: document.querySelector('[data-hero-note]'), detailVisual: document.querySelector('.detail-visual'), detailSlot: document.querySelector('[data-detail-slot]'), detailPhotoRail: document.querySelector('[data-detail-photo-rail]'), detailPhotoIndex: document.querySelector('[data-detail-photo-index]'), detailLabel: document.querySelector('[data-detail-label]'), detailTitle: document.querySelector('[data-detail-title]'), detailDescription: document.querySelector('[data-detail-description]'), detailType: document.querySelector('[data-detail-type]'), detailStatus: document.querySelector('[data-detail-status]'), detailSubtypes: document.querySelector('[data-detail-subtypes]'), detailSlotTitle: document.querySelector('[data-detail-slot-title]'), detailSlotNote: document.querySelector('[data-detail-slot-note]'), detailEditHint: document.querySelector('[data-detail-edit-hint]'), inlineEditor: document.querySelector('[data-inline-editor]'), inlineEditorTrigger: document.querySelector('[data-open-inline-editor]'), inlineEditorClose: document.querySelector('[data-close-inline-editor]'), inlineSubtypeName: document.querySelector('[data-inline-subtype-name]'), inlineCardTitle: document.querySelector('[data-inline-card-title]'), inlineCardLabel: document.querySelector('[data-inline-card-label]'), inlineCardCategory: document.querySelector('[data-inline-card-category]'), inlineCardCopy: document.querySelector('[data-inline-card-copy]'), inlineSubtypeCopy: document.querySelector('[data-inline-subtype-copy]'), inlineCardImage: document.querySelector('[data-inline-card-image]'), inlineCoverPreview: document.querySelector('[data-inline-cover-preview]'), inlineDropzone: document.querySelector('[data-inline-dropzone]'), inlineFile: document.querySelector('[data-inline-file]'), inlinePhotoList: document.querySelector('[data-inline-photo-list]'), inlineEmpty: document.querySelector('[data-inline-empty]'), inlineStatus: document.querySelector('[data-inline-status]'), inlineUndo: document.querySelector('[data-inline-undo]'), inlineSave: document.querySelector('[data-inline-save]')
+    title: document.querySelector('[data-current-title]'), count: document.querySelector('[data-current-count]'), mediaStatus: document.querySelector('[data-current-media-status]'), edgeIndex: document.querySelector('[data-edge-index]'), edgeRange: document.querySelector('[data-edge-range]'), menuPanel: document.querySelector('[data-menu-panel]'), menuButton: document.querySelector('[data-open-menu]'), menuList: document.querySelector('[data-menu-list]'), detailPanel: document.querySelector('[data-detail-panel]'), detailAurora: document.querySelector('[data-detail-aurora]'), aboutPanel: document.querySelector('[data-about-panel]'), contactPanel: document.querySelector('[data-contact-panel]'), personPanel: document.querySelector('[data-person-panel]'), personButton: document.querySelector('[data-open-person]'), personList: document.querySelector('[data-person-list]'), personCode: document.querySelector('[data-current-person-code]'), personName: document.querySelector('[data-current-person-name]'), personFooter: document.querySelector('[data-current-person-footer]'), heroCopy: document.querySelector('.hero-copy'), heroRail: document.querySelector('.hero-rail'), heroIndex: document.querySelector('[data-hero-index]'), heroName: document.querySelector('[data-hero-name]'), heroMode: document.querySelector('[data-hero-mode]'), heroNote: document.querySelector('[data-hero-note]'), detailVisual: document.querySelector('.detail-visual'), detailSlot: document.querySelector('[data-detail-slot]'), detailPhotoRail: document.querySelector('[data-detail-photo-rail]'), detailPhotoIndex: document.querySelector('[data-detail-photo-index]'), detailLabel: document.querySelector('[data-detail-label]'), detailTitle: document.querySelector('[data-detail-title]'), detailDescription: document.querySelector('[data-detail-description]'), detailType: document.querySelector('[data-detail-type]'), detailStatus: document.querySelector('[data-detail-status]'), detailSubtypes: document.querySelector('[data-detail-subtypes]'), detailSlotTitle: document.querySelector('[data-detail-slot-title]'), detailSlotNote: document.querySelector('[data-detail-slot-note]'), detailEditHint: document.querySelector('[data-detail-edit-hint]'), detailMediaActions: document.querySelector('[data-detail-media-actions]'), detailReplace: document.querySelector('[data-detail-replace]'), detailReplaceFile: document.querySelector('[data-detail-replace-file]'), inlineEditor: document.querySelector('[data-inline-editor]'), inlineEditorTrigger: document.querySelector('[data-open-inline-editor]'), inlineEditorClose: document.querySelector('[data-close-inline-editor]'), inlineSubtypeName: document.querySelector('[data-inline-subtype-name]'), inlineCardTitle: document.querySelector('[data-inline-card-title]'), inlineCardLabel: document.querySelector('[data-inline-card-label]'), inlineCardCategory: document.querySelector('[data-inline-card-category]'), inlineCardCopy: document.querySelector('[data-inline-card-copy]'), inlineSubtypeCopy: document.querySelector('[data-inline-subtype-copy]'), inlineCardImage: document.querySelector('[data-inline-card-image]'), inlineCoverPreview: document.querySelector('[data-inline-cover-preview]'), inlineDropzone: document.querySelector('[data-inline-dropzone]'), inlineFile: document.querySelector('[data-inline-file]'), inlinePhotoList: document.querySelector('[data-inline-photo-list]'), inlineEmpty: document.querySelector('[data-inline-empty]'), inlineStatus: document.querySelector('[data-inline-status]'), inlineUndo: document.querySelector('[data-inline-undo]'), inlineSave: document.querySelector('[data-inline-save]'), themeToggle: document.querySelector('[data-theme-toggle]'), backgroundEditor: document.querySelector('[data-background-editor]'), backgroundOpen: document.querySelector('[data-open-background-editor]'), backgroundClose: document.querySelector('[data-close-background-editor]'), backgroundReset: document.querySelector('[data-reset-background]'), auroraReset: document.querySelector('[data-reset-aurora]'), bgColor1: document.querySelector('[data-bg-color1]'), bgColor2: document.querySelector('[data-bg-color2]'), bgColor3: document.querySelector('[data-bg-color3]'), bgMouseForce: document.querySelector('[data-bg-mouse-force]'), bgCursorSize: document.querySelector('[data-bg-cursor-size]'), bgResolution: document.querySelector('[data-bg-resolution]'), bgAutoSpeed: document.querySelector('[data-bg-auto-speed]'), bgAutoIntensity: document.querySelector('[data-bg-auto-intensity]'), bgPressure: document.querySelector('[data-bg-pressure]'), bgBounce: document.querySelector('[data-bg-bounce]'), bgAutoAnimate: document.querySelector('[data-bg-auto-animate]'), bgViscous: document.querySelector('[data-bg-viscous]'), bgViscousCoef: document.querySelector('[data-bg-viscous-coef]'), bgViscousIterations: document.querySelector('[data-bg-viscous-iterations]'), auroraColor1: document.querySelector('[data-aurora-color1]'), auroraColor2: document.querySelector('[data-aurora-color2]'), auroraColor3: document.querySelector('[data-aurora-color3]'), auroraSpeed: document.querySelector('[data-aurora-speed]'), auroraAmplitude: document.querySelector('[data-aurora-amplitude]'), auroraBlend: document.querySelector('[data-aurora-blend]'), auroraLightMode: document.querySelector('[data-aurora-light-mode]')
   };
   let inlineDraft = null;
   let inlineUploadCount = 0;
+  const BACKGROUND_DEFAULTS = {
+    light: { color1: '#5227FF', color2: '#FF9FFC', color3: '#B497CF', mouseForce: 20, cursorSize: 100, resolution: .5, autoSpeed: .5, autoIntensity: 2.2, pressure: 32, bounceEdges: false, autoAnimate: true, viscousEnabled: true, viscousCoef: 30, viscousIterations: 32, dt: .014, bfecc: true, backgroundColor: '#eeeae3', lightMode: true },
+    dark: { color1: '#5227FF', color2: '#FF9FFC', color3: '#B497CF', mouseForce: 20, cursorSize: 100, resolution: .5, autoSpeed: .5, autoIntensity: 2.2, pressure: 32, bounceEdges: false, autoAnimate: true, viscousEnabled: true, viscousCoef: 30, viscousIterations: 32, dt: .014, bfecc: true, backgroundColor: '#120f17', lightMode: false }
+  };
+  let backgroundPalettes = (() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('lin-gallery-background') || 'null');
+      return { light: { ...BACKGROUND_DEFAULTS.light, ...(saved?.light || {}) }, dark: { ...BACKGROUND_DEFAULTS.dark, ...(saved?.dark || {}) } };
+    } catch (_) { return JSON.parse(JSON.stringify(BACKGROUND_DEFAULTS)); }
+  })();
+  const AURORA_DEFAULTS = {
+    light: { colorStops: ['#7CFF67', '#B497CF', '#5227FF'], speed: 1, amplitude: 1, blend: .5, lightMode: true },
+    dark: { colorStops: ['#5227FF', '#7CFF67', '#B497CF'], speed: 1, amplitude: 1, blend: .5, lightMode: false }
+  };
+  let auroraPalettes = (() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('lin-gallery-aurora') || 'null');
+      return { light: { ...AURORA_DEFAULTS.light, ...(saved?.light || {}), colorStops: [...(saved?.light?.colorStops || AURORA_DEFAULTS.light.colorStops)] }, dark: { ...AURORA_DEFAULTS.dark, ...(saved?.dark || {}), colorStops: [...(saved?.dark?.colorStops || AURORA_DEFAULTS.dark.colorStops)] } };
+    } catch (_) { return JSON.parse(JSON.stringify(AURORA_DEFAULTS)); }
+  })();
+  function activeAuroraPalette() { return auroraPalettes[isDarkTheme() ? 'dark' : 'light']; }
+  function applyAuroraPalette() {
+    const palette = activeAuroraPalette();
+    [[ui.auroraColor1, palette.colorStops[0]], [ui.auroraColor2, palette.colorStops[1]], [ui.auroraColor3, palette.colorStops[2]]].forEach(([input, value]) => { if (input) input.value = value; });
+    [['auroraSpeed', 'speed'], ['auroraAmplitude', 'amplitude'], ['auroraBlend', 'blend']].forEach(([control, key]) => { if (ui[control] && palette[key] != null) ui[control].value = palette[key]; const output = document.querySelector(`[data-${control.replace(/^aurora/, 'aurora-')}-value]`); if (output && ui[control]) output.textContent = Number(ui[control].value).toFixed(2); });
+    if (ui.auroraLightMode) ui.auroraLightMode.checked = palette.lightMode === true;
+    window.linAuroraBackground?.update({ colorStops: palette.colorStops, speed: palette.speed, amplitude: palette.amplitude, blend: palette.blend, lightMode: palette.lightMode });
+  }
+  function activeBackgroundPalette() { return backgroundPalettes[isDarkTheme() ? 'dark' : 'light']; }
+  function applyBackgroundPalette() {
+    const palette = activeBackgroundPalette();
+    document.documentElement.style.setProperty('--bg-horizon', palette.color1);
+    document.documentElement.style.setProperty('--bg-highlight', palette.color2);
+    document.documentElement.style.setProperty('--bg-shadow', palette.color3);
+    const hex = (value) => String(value || '').replace('#', '');
+    const rgb = hex(palette.backgroundColor).match(/^([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
+    const luminance = rgb ? (0.2126 * parseInt(rgb[1], 16) + 0.7152 * parseInt(rgb[2], 16) + 0.0722 * parseInt(rgb[3], 16)) / 255 : .8;
+    document.documentElement.style.setProperty('--ui-ink', luminance < .48 ? '#f6f1ea' : '#151515');
+    document.documentElement.style.setProperty('--ui-muted', luminance < .48 ? '#d4cbd7' : '#69655f');
+    [[ui.bgColor1, 'color1'], [ui.bgColor2, 'color2'], [ui.bgColor3, 'color3']].forEach(([input, key]) => { if (input) input.value = palette[key]; });
+    const controls = [['bgMouseForce','mouseForce'],['bgCursorSize','cursorSize'],['bgResolution','resolution'],['bgAutoSpeed','autoSpeed'],['bgAutoIntensity','autoIntensity'],['bgPressure','pressure'],['bgViscousCoef','viscousCoef'],['bgViscousIterations','viscousIterations']];
+    controls.forEach(([control, key]) => { if (ui[control] && palette[key] != null) ui[control].value = palette[key]; const output = document.querySelector(`[data-${control.replace(/^bg/, 'bg-')}-value]`); if (output && ui[control]) output.textContent = Number(ui[control].value).toFixed(Number(ui[control].step) < .1 ? 2 : 1); });
+    if (ui.bgBounce) ui.bgBounce.checked = palette.bounceEdges === true;
+    if (ui.bgAutoAnimate) ui.bgAutoAnimate.checked = palette.autoAnimate !== false;
+    if (ui.bgViscous) ui.bgViscous.checked = palette.viscousEnabled !== false;
+    window.linGradientWaves?.update({ colors: [palette.color1, palette.color2, palette.color3], mouseForce: palette.mouseForce, cursorSize: palette.cursorSize, resolution: palette.resolution, autoSpeed: palette.autoSpeed, autoIntensity: palette.autoIntensity, pressure: palette.pressure, bounceEdges: palette.bounceEdges, autoAnimate: palette.autoAnimate, viscousEnabled: palette.viscousEnabled, viscousCoef: palette.viscousCoef, viscousIterations: palette.viscousIterations, dt: palette.dt, BFECC: palette.bfecc, backgroundColor: palette.backgroundColor, lightMode: palette.lightMode });
+    applyAuroraPalette();
+  }
+
+  function isDarkTheme() { return document.documentElement.dataset.theme === 'dark'; }
+  function applyTheme(theme, persist = true) {
+    const nextTheme = theme === 'dark' ? 'dark' : 'light';
+    document.documentElement.dataset.theme = nextTheme;
+    if (persist) localStorage.setItem('lin-gallery-theme', nextTheme);
+    const dark = nextTheme === 'dark';
+    if (ui.themeToggle) {
+      ui.themeToggle.setAttribute('aria-pressed', String(dark));
+      ui.themeToggle.setAttribute('title', dark ? '切换到浅色主题' : '切换到深色主题');
+      ui.themeToggle.classList.remove('is-switching');
+      requestAnimationFrame(() => ui.themeToggle.classList.add('is-switching'));
+      window.setTimeout(() => ui.themeToggle.classList.remove('is-switching'), 520);
+    }
+    const metaTheme = document.querySelector('meta[name="theme-color"]');
+    if (metaTheme) metaTheme.setAttribute('content', dark ? '#171717' : '#eeeae3');
+    if (sceneState.renderer && sceneState.THREE) sceneState.renderer.setClearColor(0x000000, 0);
+    if (sceneState.floor?.material?.color) sceneState.floor.material.color.setHex(dark ? 0x2a2a2a : 0xded9d0);
+    applyBackgroundPalette();
+    if (sceneState.cardGroup && sceneState.THREE) sceneState.cardGroup.children.forEach((mesh, index) => {
+      mesh.material.map?.dispose();
+      mesh.material.map = canvasTexture(sceneState.THREE, cards[index], index);
+      mesh.material.needsUpdate = true;
+      if (mesh.userData.backing?.material) { mesh.userData.backing.material.color.set(isDarkTheme() ? '#393939' : '#fffaf2'); mesh.userData.backing.material.opacity = 0; }
+    });
+  }
 
   function setScale() {
     const isMobile = window.innerWidth < 700;
@@ -140,6 +272,9 @@
     frame.style.setProperty('--scale', scale.toFixed(4));
     frame.style.setProperty('--frame-left', `${frameLeft.toFixed(2)}px`);
     frame.style.setProperty('--frame-top', `${frameTop.toFixed(2)}px`);
+    shell?.style.setProperty('--scale', scale.toFixed(4));
+    shell?.style.setProperty('--frame-left', `${frameLeft.toFixed(2)}px`);
+    shell?.style.setProperty('--frame-top', `${frameTop.toFixed(2)}px`);
     frame.dataset.wide = String(isWideDesktop);
     frame.dataset.mobile = String(isMobile);
   }
@@ -151,6 +286,8 @@
     developerMode = Boolean(enabled);
     document.documentElement.dataset.developerMode = String(developerMode);
     if (ui.detailEditHint) ui.detailEditHint.hidden = !developerMode;
+    if (ui.detailMediaActions) ui.detailMediaActions.hidden = !developerMode;
+    document.querySelectorAll('[data-build-mode]').forEach((item) => { item.textContent = developerMode ? '开发者编辑版' : (editorRequested ? '开发者编辑版（未授权）' : '预览版'); });
   }
   function editorRequestHeaders(extra = {}) {
     const headers = { ...extra };
@@ -305,23 +442,31 @@
     const textureCanvas = document.createElement('canvas');
     textureCanvas.width = 720; textureCanvas.height = 1080;
     const ctx = textureCanvas.getContext('2d');
-    const imageRegion = { x: 46, y: 52, width: 628, height: 885 };
-    const cardBackground = card.image ? '#d9d4cc' : card.color;
-    const cardInk = index === 4 ? '#f4f1eb' : '#161616';
+    const applyCardMask = () => {
+      const radius = 56;
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-in';
+      ctx.beginPath();
+      if (typeof ctx.roundRect === 'function') ctx.roundRect(0, 0, textureCanvas.width, textureCanvas.height, radius);
+      else { ctx.rect(0, 0, textureCanvas.width, textureCanvas.height); }
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+      ctx.restore();
+    };
+    const imageRegion = { x: 0, y: 0, width: 720, height: 1080 };
+    const darkTheme = isDarkTheme();
+    const cardBackground = card.image ? '#d9d4cc' : (darkTheme ? '#3a3a3a' : (card.color || '#d9d4cc'));
+    const cardInk = darkTheme ? '#f3f0ea' : (index === 4 ? '#f4f1eb' : '#161616');
     ctx.fillStyle = cardBackground; ctx.fillRect(0, 0, 720, 1080);
     ctx.fillStyle = cardInk;
-    ctx.font = '500 20px "Microsoft YaHei", sans-serif'; ctx.letterSpacing = '2px'; ctx.fillText(`${person.code} - ${String(index + 1).padStart(2, '0')}`, 44, 58);
-    ctx.strokeStyle = index === 4 ? 'rgba(244,241,235,.35)' : 'rgba(22,22,22,.23)'; ctx.lineWidth = 2;
-    ctx.strokeRect(imageRegion.x, imageRegion.y, imageRegion.width, imageRegion.height);
-    ctx.strokeStyle = index === 4 ? 'rgba(244,241,235,.22)' : 'rgba(22,22,22,.10)';
-    for (let y = imageRegion.y + 24; y < imageRegion.y + imageRegion.height - 12; y += 26) { ctx.beginPath(); ctx.moveTo(imageRegion.x + 22, y); ctx.lineTo(imageRegion.x + imageRegion.width - 22, y); ctx.stroke(); }
+    ctx.font = '500 20px "Microsoft YaHei", sans-serif'; ctx.letterSpacing = '2px'; ctx.fillText(`${person.code} - ${String(index + 1).padStart(2, '0')}`, 24, 34);
     if (!card.image) {
-      ctx.fillStyle = cardInk; ctx.font = '700 76px "Microsoft YaHei", sans-serif'; ctx.fillText('图片', 66, 500); ctx.fillText('位置', 66, 580);
-      ctx.font = '500 18px "Microsoft YaHei", sans-serif'; ctx.fillText('后续添加最终图片', 68, 636);
+      ctx.fillStyle = cardInk; ctx.font = '700 40px "Microsoft YaHei", sans-serif'; ctx.fillText(card.label, 54, 548);
+      ctx.font = '500 17px "Microsoft YaHei", sans-serif'; ctx.globalAlpha = .7; ctx.fillText('点击进入合集', 56, 548); ctx.globalAlpha = 1;
+      ctx.font = '500 22px "Microsoft YaHei", sans-serif'; ctx.fillText(card.type, 24, 1012);
+      ctx.fillText('↗', 650, 1044);
+      applyCardMask();
     }
-    ctx.font = '500 22px "Microsoft YaHei", sans-serif'; ctx.fillText(card.label, 46, 990);
-    ctx.font = '500 16px "Microsoft YaHei", sans-serif'; ctx.fillText(card.type, 46, 1024);
-    ctx.fillStyle = index === 4 ? '#f4f1eb' : '#161616'; ctx.font = '500 16px "Microsoft YaHei", sans-serif'; ctx.fillText('打开', 619, 1026);
     const texture = new THREE.CanvasTexture(textureCanvas);
     if ('colorSpace' in texture && THREE.SRGBColorSpace) texture.colorSpace = THREE.SRGBColorSpace;
     if (card.image) {
@@ -340,9 +485,16 @@
         const positionY = Number.isFinite(Number(position.y)) ? Number(position.y) : 50;
         ctx.drawImage(image, imageRegion.x + (imageRegion.width - width) * (positionX / 100), imageRegion.y + (imageRegion.height - height) * (positionY / 100), width, height);
         ctx.restore();
-        ctx.strokeStyle = index === 4 ? 'rgba(244,241,235,.35)' : 'rgba(22,22,22,.23)';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(imageRegion.x, imageRegion.y, imageRegion.width, imageRegion.height);
+        const overlay = ctx.createLinearGradient(0, 680, 0, 1080);
+        overlay.addColorStop(0, 'rgba(17,17,17,0)');
+        overlay.addColorStop(1, 'rgba(17,17,17,.82)');
+        ctx.fillStyle = overlay; ctx.fillRect(0, 0, 720, 1080);
+        ctx.fillStyle = '#fffaf2';
+        ctx.font = '500 20px "Microsoft YaHei", sans-serif'; ctx.fillText(`${person.code} - ${String(index + 1).padStart(2, '0')}`, 24, 34);
+        ctx.font = '500 22px "Microsoft YaHei", sans-serif'; ctx.fillText(card.label, 24, 1012);
+        ctx.font = '500 16px "Microsoft YaHei", sans-serif'; ctx.fillText(card.type, 24, 1044);
+        ctx.fillStyle = '#f0b4c3'; ctx.font = '500 22px sans-serif'; ctx.fillText('↗', 650, 1045);
+        applyCardMask();
         texture.needsUpdate = true;
       };
       image.src = card.image;
@@ -350,27 +502,142 @@
     return texture;
   }
 
+  function createAntigravity(THREE, scene) {
+    const count = reducedMotion.matches ? Math.round(ANTIGRAVITY_CONFIG.count * .65) : ANTIGRAVITY_CONFIG.count;
+    const geometry = new THREE.TetrahedronGeometry(ANTIGRAVITY_CONFIG.size, 0);
+    const material = new THREE.MeshBasicMaterial({
+      color: ANTIGRAVITY_CONFIG.color,
+      transparent: true,
+      opacity: ANTIGRAVITY_CONFIG.opacity,
+      depthWrite: false
+    });
+    const mesh = new THREE.InstancedMesh(geometry, material, count);
+    mesh.frustumCulled = false;
+    mesh.renderOrder = -1;
+    scene.add(mesh);
+
+    const particles = Array.from({ length: count }, (_, index) => {
+      const seed = index + 1;
+      const spread = ((seed * 37) % 1000) / 1000;
+      const vertical = ((seed * 71) % 1000) / 1000;
+      const depth = ((seed * 53) % 1000) / 1000;
+      return {
+        x: (spread - .5) * ANTIGRAVITY_CONFIG.spreadX,
+        y: (vertical - .5) * ANTIGRAVITY_CONFIG.spreadY - .35,
+        z: -2.2 - depth * ANTIGRAVITY_CONFIG.depth,
+        phase: seed * .37,
+        drift: .55 + ((seed * 17) % 100) / 100,
+        scale: .5 + ((seed * 29) % 100) / 150
+      };
+    });
+    const dummy = new THREE.Object3D();
+    return { mesh, particles, dummy };
+  }
+
+  // A restrained particle field gives the archive a living atmosphere without competing with the photographs.
+  function updateAntigravity(effect, now) {
+    if (!effect) return;
+    const time = now * .00024;
+    state.particlePointerX += (state.particleTargetX - state.particlePointerX) * .12;
+    state.particlePointerY += (state.particleTargetY - state.particlePointerY) * .12;
+    const pointerX = state.particlePointerX * 5.2;
+    const pointerY = -state.particlePointerY * 3.65 - .35;
+    effect.particles.forEach((particle, index) => {
+      const driftX = Math.sin(time * particle.drift + particle.phase) * .18;
+      const driftY = Math.cos(time * particle.drift * .82 + particle.phase) * .16;
+      let x = particle.x + driftX;
+      let y = particle.y + driftY;
+      const dx = x - pointerX;
+      const dy = y - pointerY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      if (!reducedMotion.matches && distance < 2.25) {
+        const force = (1 - distance / 2.25) * 1.15;
+        const safeDistance = Math.max(distance, .001);
+        x += (dx / safeDistance) * force;
+        y += (dy / safeDistance) * force;
+      }
+      effect.dummy.position.set(x, y, particle.z + Math.sin(time * .65 + particle.phase) * .08);
+      effect.dummy.rotation.set(time * particle.drift + index, time * .7 + particle.phase, time * .45 + index * .2);
+      effect.dummy.scale.setScalar(particle.scale * (1 + Math.sin(time * 1.4 + particle.phase) * .16));
+      effect.dummy.updateMatrix();
+      effect.mesh.setMatrixAt(index, effect.dummy.matrix);
+    });
+    effect.mesh.instanceMatrix.needsUpdate = true;
+  }
+
+  function createSilkBackground(THREE, scene) {
+    const material = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uHorizonColor: { value: new THREE.Color() },
+        uHighlightColor: { value: new THREE.Color() },
+        uShadowColor: { value: new THREE.Color() },
+        uSpeed: { value: 0.32 },
+        uScale: { value: 1.05 },
+        uRotation: { value: 0.18 },
+        uIntensity: { value: 1 }
+      },
+      vertexShader: SILK_VERTEX_SHADER,
+      fragmentShader: SILK_FRAGMENT_SHADER,
+      transparent: false,
+      opacity: 1,
+      depthWrite: false,
+      depthTest: false
+    });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(24, 16), material);
+    mesh.position.set(0, 0, -6.2);
+    mesh.renderOrder = -2;
+    mesh.frustumCulled = false;
+    scene.add(mesh);
+    applyBackgroundPalette();
+    return mesh;
+  }
+
+  function updateSilkBackground(mesh, now) {
+    if (mesh?.material?.uniforms?.uTime) mesh.material.uniforms.uTime.value = now * 0.001;
+  }
+
   function createScene(THREE) {
     sceneState.THREE = THREE;
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
     if ('outputColorSpace' in renderer && THREE.SRGBColorSpace) renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    renderer.setSize(FRAME.width, FRAME.height, false);
-    renderer.setClearColor(0xeeeae3, 1);
+    renderer.setClearColor(0x000000, 0);
+    sceneState.renderer = renderer;
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(31, FRAME.width / FRAME.height, .1, 100);
     camera.position.set(0, 0.25, 10.6);
     const ambient = new THREE.AmbientLight(0xffffff, 2.2); scene.add(ambient);
-    const group = new THREE.Group(); group.position.y = -1.37; scene.add(group);
+    const backgroundHost = document.querySelector('[data-gradient-waves]');
+    const palette = activeBackgroundPalette();
+    window.linGradientWaves?.init(backgroundHost, { colors: [palette.color1, palette.color2, palette.color3], mouseForce: palette.mouseForce, cursorSize: palette.cursorSize, resolution: palette.resolution, autoSpeed: palette.autoSpeed, autoIntensity: palette.autoIntensity, pressure: palette.pressure, bounceEdges: palette.bounceEdges, autoAnimate: palette.autoAnimate, viscousEnabled: palette.viscousEnabled, viscousCoef: palette.viscousCoef, viscousIterations: palette.viscousIterations, dt: palette.dt, BFECC: palette.bfecc, backgroundColor: palette.backgroundColor, lightMode: palette.lightMode }, THREE).catch(() => {});
+    const group = new THREE.Group(); group.position.y = -.62; scene.add(group);
     const cardGroup = new THREE.Group(); group.add(cardGroup);
     sceneState.camera = camera;
     sceneState.cardGroup = cardGroup;
     sceneState.raycaster = new THREE.Raycaster();
     sceneState.pointer = new THREE.Vector2();
-    const cardWidth = 2.78;
-    const cardHeight = 4.17;
+    const resizeScene = () => {
+      const width = Math.max(1, window.innerWidth);
+      const height = Math.max(1, window.innerHeight);
+      const mobile = width < 700;
+      renderer.setSize(mobile ? FRAME.width : width, mobile ? FRAME.height : height, false);
+      camera.aspect = mobile ? FRAME.width / FRAME.height : width / height;
+      camera.updateProjectionMatrix();
+    };
+    resizeScene();
+    window.addEventListener('resize', resizeScene, { passive: true });
+    const cardWidth = 2.36;
+    const cardHeight = 3.54;
     const geometry = new THREE.PlaneGeometry(cardWidth, cardHeight);
-    const backingGeometry = new THREE.PlaneGeometry(cardWidth + .06, cardHeight + .06);
+    const roundedShape = new THREE.Shape();
+    const backingWidth = cardWidth + .06; const backingHeight = cardHeight + .06; const corner = .24;
+    roundedShape.moveTo(-backingWidth / 2 + corner, -backingHeight / 2);
+    roundedShape.lineTo(backingWidth / 2 - corner, -backingHeight / 2); roundedShape.quadraticCurveTo(backingWidth / 2, -backingHeight / 2, backingWidth / 2, -backingHeight / 2 + corner);
+    roundedShape.lineTo(backingWidth / 2, backingHeight / 2 - corner); roundedShape.quadraticCurveTo(backingWidth / 2, backingHeight / 2, backingWidth / 2 - corner, backingHeight / 2);
+    roundedShape.lineTo(-backingWidth / 2 + corner, backingHeight / 2); roundedShape.quadraticCurveTo(-backingWidth / 2, backingHeight / 2, -backingWidth / 2, backingHeight / 2 - corner);
+    roundedShape.lineTo(-backingWidth / 2, -backingHeight / 2 + corner); roundedShape.quadraticCurveTo(-backingWidth / 2, -backingHeight / 2, -backingWidth / 2 + corner, -backingHeight / 2);
+    const backingGeometry = new THREE.ShapeGeometry(roundedShape);
     const outlineGeometry = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(-cardWidth / 2, -cardHeight / 2, .018),
       new THREE.Vector3(cardWidth / 2, -cardHeight / 2, .018),
@@ -393,13 +660,12 @@
     });
     const focusGeometry = new THREE.BufferGeometry().setFromPoints(focusPoints);
     cards.forEach((card, index) => {
-      const material = new THREE.MeshBasicMaterial({ map: canvasTexture(THREE, card, index), side: THREE.FrontSide, depthWrite: true, depthTest: true });
+      const material = new THREE.MeshBasicMaterial({ map: canvasTexture(THREE, card, index), side: THREE.FrontSide, transparent: true, alphaTest: .01, depthWrite: true, depthTest: true });
       const mesh = new THREE.Mesh(geometry, material); mesh.userData.index = index;
-      const backingColor = card.image ? '#d9d4cc' : (card.color || '#ded9d0');
-      const backing = new THREE.Mesh(backingGeometry, new THREE.MeshBasicMaterial({ color: backingColor, side: THREE.FrontSide, depthWrite: true, depthTest: true }));
-      backing.position.set(.035, -.04, -.045);
+      const backing = new THREE.Mesh(backingGeometry, new THREE.MeshBasicMaterial({ color: isDarkTheme() ? '#393939' : '#fffaf2', side: THREE.FrontSide, transparent: true, opacity: 0, depthWrite: false, depthTest: true }));
+      backing.position.set(.008, -.008, -.05);
       mesh.add(backing);
-      const outline = new THREE.LineLoop(outlineGeometry, new THREE.LineBasicMaterial({ color: 0x4d4a45, transparent: true, opacity: .14, depthWrite: false }));
+      const outline = new THREE.LineLoop(outlineGeometry, new THREE.LineBasicMaterial({ color: 0x4d4a45, transparent: true, opacity: 0, depthWrite: false }));
       const focusFrame = new THREE.LineSegments(focusGeometry, new THREE.LineBasicMaterial({ color: index % 2 ? 0xb73559 : 0xc9643b, transparent: true, opacity: 0, depthTest: false, depthWrite: false }));
       mesh.add(outline, focusFrame);
       mesh.userData.outline = outline;
@@ -407,8 +673,9 @@
       mesh.userData.focusFrame = focusFrame;
       cardGroup.add(mesh);
     });
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(24, 8), new THREE.MeshBasicMaterial({ color: 0xded9d0, transparent: true, opacity: .36 }));
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(24, 8), new THREE.MeshBasicMaterial({ color: isDarkTheme() ? 0x2a2a2a : 0xded9d0, transparent: true, opacity: 0 }));
     floor.rotation.x = -Math.PI / 2; floor.position.y = -3.22; floor.position.z = -1.3; scene.add(floor);
+    sceneState.floor = floor;
 
     function render(now) {
       const dt = Math.min((now - state.last) / 1000, .05); state.last = now;
@@ -419,7 +686,7 @@
       state.switchProgress = Math.min(1, state.switchProgress + dt * (reducedMotion.matches ? 12 : 3.4));
       const switchWave = Math.sin(state.switchProgress * Math.PI);
       cardGroup.rotation.y = switchWave * 0.045;
-      group.position.y = -1.37 + switchWave * 0.08;
+      group.position.y = -.62 + switchWave * 0.08;
       const orbitPhase = (state.progress / cards.length) * Math.PI * 2;
       if (ui.heroCopy) ui.heroCopy.style.setProperty('--hero-drift-x', `${(Math.sin(orbitPhase) * 3.5).toFixed(2)}px`);
       cards.forEach((_, index) => {
@@ -431,21 +698,24 @@
         mesh.userData.hover = (mesh.userData.hover || 0) + (hoverTarget - (mesh.userData.hover || 0)) * Math.min(1, dt * 11);
         const hover = mesh.userData.hover;
         mesh.position.set(x, Math.sin(angle * 2) * .22 + hover * .08, z + hover * .28);
-        mesh.rotation.y = -wrappedAngle * .48 + hover * (.035 + state.cursorNdcX * .055); mesh.rotation.x = hover * state.cursorNdcY * -.045; mesh.rotation.z = Math.sin(angle) * -.07;
-        const scale = (.76 + depth * .42) * (1 + hover * .08); mesh.scale.setScalar(scale);
+        mesh.rotation.y = -wrappedAngle * .48 + hover * (.035 + state.cursorNdcX * .12); mesh.rotation.x = hover * state.cursorNdcY * -.12;
+        const press = mesh.userData.press || 0;
+        mesh.userData.press = press + (state.activeCardIndex === index ? 1 - press : -press) * Math.min(1, dt * 18);
+        mesh.rotation.z = Math.sin(angle) * -.07 + mesh.userData.press * .03;
+        const scale = (.62 + depth * .30) * (1 + hover * .08 - mesh.userData.press * .05); mesh.scale.setScalar(scale);
         const pulse = .5 + Math.sin(now * .0011 + index * .8) * .5;
         const shade = (.66 + depth * .34) * (.72 + state.switchProgress * .28);
         if (mesh.material.color) mesh.material.color.setRGB(shade, shade, shade);
         if (mesh.userData.backing) {
-          mesh.userData.backing.position.x = .035 + hover * .045;
-          mesh.userData.backing.position.y = -.04 - hover * .045;
+          mesh.userData.backing.position.x = .008 + hover * .018;
+          mesh.userData.backing.position.y = -.008 - hover * .018;
         }
         if (mesh.userData.outline) {
-          mesh.userData.outline.material.opacity = (.08 + depth * .16) * (.84 + pulse * .16) + hover * .08;
+          mesh.userData.outline.material.opacity = 0;
           mesh.userData.outline.material.color.setHex(hover > .02 ? 0xb73559 : 0x4d4a45);
         }
         if (mesh.userData.focusFrame) {
-          mesh.userData.focusFrame.material.opacity = Math.max(0, depth - .28) * (.06 + hover * .88);
+          mesh.userData.focusFrame.material.opacity = 0;
           mesh.userData.focusFrame.scale.setScalar(1 + hover * .055);
         }
       });
@@ -466,7 +736,31 @@
     return sceneState.raycaster.intersectObjects(sceneState.cardGroup.children, false)[0]?.object || null;
   }
 
-  function setPanel(panel, open) { panel.classList.toggle('is-open', open); panel.setAttribute('aria-hidden', String(!open)); panel.inert = !open; }
+  function setPanel(panel, open) { panel.classList.toggle('is-open', open); panel.setAttribute('aria-hidden', String(!open)); panel.inert = !open; if (panel === ui.detailPanel && frame) { frame.dataset.detailOpen = String(open); if (shell) shell.dataset.detailOpen = String(open); window.linAuroraBackground?.setVisible(open); } }
+  function bindHoverCardInteraction(element) {
+    if (!element || element.dataset.hoverCardBound === 'true') return;
+    element.dataset.hoverCardBound = 'true';
+    const reset = () => {
+      element.style.setProperty('--card-rx', '0deg');
+      element.style.setProperty('--card-ry', '0deg');
+      element.style.setProperty('--card-gx', '50%');
+      element.style.setProperty('--card-gy', '50%');
+    };
+    element.addEventListener('pointermove', (event) => {
+      if (reducedMotion.matches) return;
+      const rect = element.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const x = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+      const y = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height));
+      element.style.setProperty('--card-rx', `${((.5 - y) * 10).toFixed(2)}deg`);
+      element.style.setProperty('--card-ry', `${((x - .5) * 12).toFixed(2)}deg`);
+      element.style.setProperty('--card-gx', `${(x * 100).toFixed(1)}%`);
+      element.style.setProperty('--card-gy', `${(y * 100).toFixed(1)}%`);
+    });
+    element.addEventListener('pointerleave', reset);
+    element.addEventListener('blur', reset);
+    reducedMotion.addEventListener?.('change', reset);
+  }
   function panelAnimatedTargets(panel) {
     const selectors = panel === ui.detailPanel
       ? ['.detail-head', '.detail-grid']
@@ -1056,7 +1350,10 @@
           replaceIndex = -1;
         } else inlineDraft.photos.push(photo);
       }
-      renderInlinePhotos(); setInlineStatus('照片已接入，保存后更新展廊。');
+      renderInlinePhotos();
+      const activeCard = activeDetailCard();
+      if (activeCard) renderDetailSlot(activeCard, currentEditingDetail(activeCard), state.detailPhotoIndex);
+      setInlineStatus('照片已接入，保存后更新展廊。');
     } catch (error) { setInlineStatus(error?.message === 'denied' ? '没有编辑权限，请用开发者模式打开。' : '照片接入失败，请确认本地服务仍在运行。', true); }
     inlineUploadCount = Math.max(0, inlineUploadCount - files.length);
   }
@@ -1109,9 +1406,20 @@
       const button = document.createElement('button');
       button.className = `subtype-button${subtypeIndex === 0 ? ' is-selected' : ''}`;
       button.type = 'button';
-      button.textContent = subtype;
+      const subtypeDetail = currentSubtypeDetail(card, subtypeIndex);
+      const subtypePhoto = subtypeDetail.photos?.[0];
+      const subtypeSource = typeof subtypePhoto === 'string' ? subtypePhoto : subtypePhoto?.src;
+      button.innerHTML = `<span class="subtype-title"></span><small class="subtype-meta"></small>`;
+      button.querySelector('.subtype-title').textContent = subtype;
+      button.querySelector('.subtype-meta').textContent = `${String(subtypeDetail.photos?.length || 0).padStart(2, '0')} PHOTO`;
+      button.style.setProperty('--subtype-color', card.color || '#d8d2c8');
+      if (subtypeSource) {
+        button.classList.add('has-image');
+        button.style.setProperty('--subtype-image', `url("${subtypeSource.replace(/"/g, '\\"')}")`);
+      }
       button.setAttribute('aria-pressed', String(subtypeIndex === 0));
       button.addEventListener('click', () => selectDetailSubtype(card, subtypeIndex));
+      bindHoverCardInteraction(button);
       ui.detailSubtypes.appendChild(button);
     });
     openPanel(ui.detailPanel, opener);
@@ -1130,9 +1438,24 @@
   }
 
   function bindUI() {
+    document.querySelectorAll('[data-build-mode]').forEach((item) => { item.textContent = editorRequested ? '开发者编辑版' : '预览版'; });
     window.addEventListener('resize', setScale, { passive: true }); setScale();
     window.addEventListener('pointermove', (event) => updateHeroParallax(event.clientX, event.clientY), { passive: true });
     window.addEventListener('blur', () => updateHeroParallax(-1, -1), { passive: true });
+    ui.themeToggle?.addEventListener('click', () => applyTheme(isDarkTheme() ? 'light' : 'dark'));
+    ui.backgroundOpen?.addEventListener('click', () => { if (!ui.backgroundEditor) return; const willOpen = ui.backgroundEditor.hidden; if (willOpen) applyBackgroundPalette(); ui.backgroundEditor.hidden = !willOpen; ui.backgroundOpen.setAttribute('aria-expanded', String(willOpen)); });
+    ui.backgroundClose?.addEventListener('click', () => { if (ui.backgroundEditor) ui.backgroundEditor.hidden = true; ui.backgroundOpen?.setAttribute('aria-expanded', 'false'); });
+    [[ui.bgColor1, 'color1'], [ui.bgColor2, 'color2'], [ui.bgColor3, 'color3']].forEach(([input, key]) => input?.addEventListener('input', () => { const palette = activeBackgroundPalette(); palette[key] = input.value; localStorage.setItem('lin-gallery-background', JSON.stringify(backgroundPalettes)); applyBackgroundPalette(); }));
+    const backgroundRanges = [['bgMouseForce','mouseForce'],['bgCursorSize','cursorSize'],['bgResolution','resolution'],['bgAutoSpeed','autoSpeed'],['bgAutoIntensity','autoIntensity'],['bgPressure','pressure'],['bgViscousCoef','viscousCoef'],['bgViscousIterations','viscousIterations']];
+    backgroundRanges.forEach(([control, key]) => ui[control]?.addEventListener('input', () => { const palette = activeBackgroundPalette(); palette[key] = Number(ui[control].value); const output = document.querySelector(`[data-${control.replace(/^bg/, 'bg-')}-value]`); if (output) output.textContent = Number(ui[control].value).toFixed(Number(ui[control].step) < .1 ? 2 : 1); localStorage.setItem('lin-gallery-background', JSON.stringify(backgroundPalettes)); applyBackgroundPalette(); }));
+    [[ui.bgBounce, 'bounceEdges'], [ui.bgAutoAnimate, 'autoAnimate'], [ui.bgViscous, 'viscousEnabled']].forEach(([input, key]) => input?.addEventListener('change', () => { const palette = activeBackgroundPalette(); palette[key] = input.checked; localStorage.setItem('lin-gallery-background', JSON.stringify(backgroundPalettes)); applyBackgroundPalette(); }));
+    ui.backgroundReset?.addEventListener('click', () => { backgroundPalettes[isDarkTheme() ? 'dark' : 'light'] = { ...BACKGROUND_DEFAULTS[isDarkTheme() ? 'dark' : 'light'] }; localStorage.setItem('lin-gallery-background', JSON.stringify(backgroundPalettes)); applyBackgroundPalette(); });
+    [[ui.auroraColor1, 0], [ui.auroraColor2, 1], [ui.auroraColor3, 2]].forEach(([input, index]) => input?.addEventListener('input', () => { const palette = activeAuroraPalette(); palette.colorStops[index] = input.value; localStorage.setItem('lin-gallery-aurora', JSON.stringify(auroraPalettes)); applyAuroraPalette(); }));
+    [['auroraSpeed', 'speed'], ['auroraAmplitude', 'amplitude'], ['auroraBlend', 'blend']].forEach(([control, key]) => ui[control]?.addEventListener('input', () => { const palette = activeAuroraPalette(); palette[key] = Number(ui[control].value); const output = document.querySelector(`[data-${control.replace(/^aurora/, 'aurora-')}-value]`); if (output) output.textContent = Number(ui[control].value).toFixed(2); localStorage.setItem('lin-gallery-aurora', JSON.stringify(auroraPalettes)); applyAuroraPalette(); }));
+    ui.auroraLightMode?.addEventListener('change', () => { const palette = activeAuroraPalette(); palette.lightMode = ui.auroraLightMode.checked; localStorage.setItem('lin-gallery-aurora', JSON.stringify(auroraPalettes)); applyAuroraPalette(); });
+    ui.auroraReset?.addEventListener('click', () => { const theme = isDarkTheme() ? 'dark' : 'light'; auroraPalettes[theme] = { ...AURORA_DEFAULTS[theme], colorStops: [...AURORA_DEFAULTS[theme].colorStops] }; localStorage.setItem('lin-gallery-aurora', JSON.stringify(auroraPalettes)); applyAuroraPalette(); });
+    window.linAuroraBackground?.init(ui.detailAurora, activeAuroraPalette());
+    window.linAuroraBackground?.setVisible(false);
     ui.personButton.addEventListener('click', (event) => {
       if (ui.personPanel.classList.contains('is-open')) closePanels();
       else { openPanel(ui.personPanel, event.currentTarget); ui.personButton.setAttribute('aria-expanded', 'true'); }
@@ -1149,6 +1472,8 @@
     document.querySelectorAll('[data-close-about]').forEach((button) => button.addEventListener('click', closePanels));
     document.querySelectorAll('[data-close-contact]').forEach((button) => button.addEventListener('click', closePanels));
     ui.inlineEditorTrigger?.addEventListener('click', openInlineEditor);
+    ui.detailReplace?.addEventListener('click', () => { if (!developerMode) return; if (!inlineDraft || ui.inlineEditor?.hidden) openInlineEditor(); setTimeout(() => ui.detailReplaceFile?.click(), 0); });
+    ui.detailReplaceFile?.addEventListener('change', () => { if (ui.detailReplaceFile.files?.[0]) uploadInlineFiles([ui.detailReplaceFile.files[0]], state.detailPhotoIndex); ui.detailReplaceFile.value = ''; });
     ui.inlineEditorClose?.addEventListener('click', () => closeInlineEditor());
     ui.inlineUndo?.addEventListener('click', undoInlineChange);
     ui.inlineSave?.addEventListener('click', saveInlineEditor);
@@ -1168,6 +1493,7 @@
     ui.detailSlot?.addEventListener('pointerup', endDetailPositionDrag);
     ui.detailSlot?.addEventListener('pointercancel', endDetailPositionDrag);
     ui.detailSlot?.addEventListener('lostpointercapture', endDetailPositionDrag);
+    bindHoverCardInteraction(ui.detailSlot);
     ui.inlineCoverPreview?.addEventListener('pointerdown', beginCoverPositionDrag);
     ui.inlineCoverPreview?.addEventListener('pointermove', moveCoverPositionDrag);
     ui.inlineCoverPreview?.addEventListener('pointerup', endCoverPositionDrag);
@@ -1182,7 +1508,7 @@
     ui.detailPhotoRail?.addEventListener('wheel', handlePhotoWheel, { passive: false });
     renderPersonList();
     renderMenuList();
-    canvas.addEventListener('pointerdown', (event) => { const hit = pickCard(event); state.down = true; state.pointerX = event.clientX; state.pointerStartX = event.clientX; state.pointerStartY = event.clientY; state.pointerHitIndex = hit?.userData.index ?? -1; state.hoveredIndex = -1; const touchDrag = event.pointerType === 'touch' || window.innerWidth < 700; state.dragScale = touchDrag ? 1 : Math.max(.001, window.innerWidth / FRAME.width); state.dragSensitivity = touchDrag ? .006 : .008; scheduleAutoResume(); canvas.dataset.dragging = 'true'; canvas.focus({ preventScroll: true }); canvas.setPointerCapture(event.pointerId); });
+    canvas.addEventListener('pointerdown', (event) => { const hit = pickCard(event); state.down = true; state.pointerX = event.clientX; state.pointerStartX = event.clientX; state.pointerStartY = event.clientY; state.pointerHitIndex = hit?.userData.index ?? -1; state.activeCardIndex = state.pointerHitIndex; state.hoveredIndex = -1; const touchDrag = event.pointerType === 'touch' || window.innerWidth < 700; state.dragScale = touchDrag ? 1 : Math.max(.001, window.innerWidth / FRAME.width); state.dragSensitivity = touchDrag ? .006 : .008; scheduleAutoResume(); canvas.dataset.dragging = 'true'; canvas.focus({ preventScroll: true }); canvas.setPointerCapture(event.pointerId); });
     canvas.addEventListener('pointermove', (event) => {
       if (state.down) {
         const moved = Math.hypot(event.clientX - state.pointerStartX, event.clientY - state.pointerStartY);
@@ -1199,17 +1525,17 @@
     const stopDrag = (event) => {
       const clickIndex = state.pointerHitIndex;
       const wasClick = clickIndex >= 0 && Math.hypot(event.clientX - state.pointerStartX, event.clientY - state.pointerStartY) < 8;
-      state.down = false; state.pointerHitIndex = -1; canvas.dataset.dragging = 'false';
+      state.down = false; state.pointerHitIndex = -1; state.activeCardIndex = -1; canvas.dataset.dragging = 'false';
       if (wasClick) openDetail(clickIndex, canvas);
       else scheduleAutoResume();
     };
     canvas.addEventListener('pointerup', stopDrag);
-    canvas.addEventListener('pointercancel', () => { state.down = false; state.pointerHitIndex = -1; canvas.dataset.dragging = 'false'; scheduleAutoResume(); });
-    canvas.addEventListener('lostpointercapture', () => { state.down = false; state.pointerHitIndex = -1; canvas.dataset.dragging = 'false'; scheduleAutoResume(); });
+    canvas.addEventListener('pointercancel', () => { state.down = false; state.pointerHitIndex = -1; state.activeCardIndex = -1; canvas.dataset.dragging = 'false'; scheduleAutoResume(); });
+    canvas.addEventListener('lostpointercapture', () => { state.down = false; state.pointerHitIndex = -1; state.activeCardIndex = -1; canvas.dataset.dragging = 'false'; scheduleAutoResume(); });
     canvas.addEventListener('pointerleave', () => { if (!state.down) { state.hoveredIndex = -1; state.cursorNdcX = 0; state.cursorNdcY = 0; canvas.dataset.hovering = 'false'; } });
     canvas.addEventListener('wheel', (event) => { event.preventDefault(); state.target += Math.sign(event.deltaY || event.deltaX) * .18; scheduleAutoResume(); updateStatus(); }, { passive: false });
     window.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') { if (state.activePanel) { event.preventDefault(); closePanels(); } return; }
+      if (event.key === 'Escape') { if (ui.backgroundEditor && !ui.backgroundEditor.hidden) { event.preventDefault(); ui.backgroundEditor.hidden = true; ui.backgroundOpen?.setAttribute('aria-expanded', 'false'); return; } if (state.activePanel) { event.preventDefault(); closePanels(); } return; }
       if (state.activePanel && event.key === 'Tab') {
         const items = focusableElements(state.activePanel);
         if (!items.length) return;
@@ -1241,6 +1567,7 @@
   }
 
   bindUI();
+  applyTheme(localStorage.getItem('lin-gallery-theme') || 'light', false);
   authorizeDeveloperMode();
   import('https://cdn.jsdelivr.net/npm/three@0.179.1/build/three.module.js').then((THREE) => {
     try { createScene(THREE); } catch (_) { showFallback(); }
