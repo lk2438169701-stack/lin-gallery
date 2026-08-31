@@ -40,7 +40,17 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
 }
 .gradient-waves-background { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; background: radial-gradient(72% 90% at 8% 18%, color-mix(in srgb, var(--liquid-a) 42%, transparent), transparent 70%), radial-gradient(68% 88% at 92% 12%, color-mix(in srgb, var(--liquid-b) 38%, transparent), transparent 72%), linear-gradient(130deg, color-mix(in srgb, var(--liquid-c) 26%, var(--paper)) 0%, var(--paper) 54%, color-mix(in srgb, var(--liquid-a) 18%, var(--paper)) 100%); animation: liquid-ether-fallback 18s ease-in-out infinite alternate; }
 .gradient-waves-background canvas { width: 100%; height: 100%; display: block; }
+html[data-background-mode="aurora"] .gradient-waves-background canvas,
+html[data-background-mode="silk"] .gradient-waves-background canvas { display: none !important; }
+html[data-background-mode="aurora"] .gradient-waves-background { background: radial-gradient(92% 82% at 12% 8%, color-mix(in srgb, var(--aurora-a) var(--aurora-alpha-a, 41%), transparent), transparent 64%), radial-gradient(86% 78% at 88% 22%, color-mix(in srgb, var(--aurora-b) var(--aurora-alpha-b, 36%), transparent), transparent 66%), linear-gradient(125deg, var(--aurora-c), var(--paper) 72%); background-size: 150% 150%, 140% 140%, 100% 100%; animation: aurora-home-drift var(--aurora-speed, 10s) ease-in-out infinite alternate; }
+html[data-background-mode="silk"] .gradient-waves-background { background: radial-gradient(90% 66% at 12% 18%, color-mix(in srgb, var(--liquid-a) calc(58% * var(--silk-softness, .8)), transparent), transparent 68%), radial-gradient(84% 70% at 88% 30%, color-mix(in srgb, var(--liquid-b) calc(52% * var(--silk-softness, .8)), transparent), transparent 70%), linear-gradient(135deg, color-mix(in srgb, var(--liquid-c) 32%, var(--paper)), var(--paper) 58%); background-size: 145% 145%, 135% 135%, 120% 120%; animation: silk-home-drift var(--silk-speed, 14s) ease-in-out infinite alternate; }
+@keyframes aurora-home-drift { from { background-position: 0% 0%, 100% 0%, 0% 50%; } to { background-position: 18% 14%, 78% 26%, 100% 50%; } }
+@keyframes silk-home-drift { from { background-position: 0% 20%, 100% 20%, 0% 50%; } to { background-position: 16% 4%, 82% 36%, 100% 50%; } }
 .gallery-shell[data-detail-open="true"] .gradient-waves-background { visibility: hidden; }
+html[data-background-mode="liquid"] .detail-panel { background: linear-gradient(135deg, color-mix(in srgb, var(--liquid-c) 30%, var(--paper)), var(--paper) 68%); }
+html[data-background-mode="silk"] .detail-panel { background: radial-gradient(100% 80% at 0% 0%, color-mix(in srgb, var(--liquid-a) 42%, transparent), transparent 68%), linear-gradient(135deg, color-mix(in srgb, var(--liquid-c) 30%, var(--paper)), var(--paper) 68%); }
+html[data-background-mode="liquid"] .detail-aurora-background,
+html[data-background-mode="silk"] .detail-aurora-background { display: none; }
 .gallery-shell::before { display: none; }
 @keyframes viewport-wave { from { transform: rotate(-4deg) translate3d(-2%, -1%, 0) scale(1.12); } to { transform: rotate(-4deg) translate3d(2%, 1%, 0) scale(1.18); } }
 @keyframes liquid-ether-fallback { from { background-position: 0% 0%, 100% 0%, 0% 50%; background-size: 115% 115%, 110% 110%, 120% 120%; } to { background-position: 12% 8%, 88% 16%, 100% 50%; background-size: 135% 135%, 128% 128%, 140% 140%; } }

@@ -201,13 +201,17 @@
     document.documentElement.dataset.backgroundMode = backgroundMode;
     document.querySelectorAll('[data-background-section]').forEach((section) => { section.hidden = section.dataset.backgroundSection !== backgroundMode; });
     ui.backgroundModes?.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.backgroundMode === backgroundMode)));
-    if (backgroundMode === 'aurora') { window.linAuroraBackground?.setVisible(true); applyAuroraPalette(); }
-    else if (backgroundMode === 'liquid') { window.linAuroraBackground?.setVisible(false); applyBackgroundPalette(); }
-    else { window.linAuroraBackground?.setVisible(false); applySilkSettings(); }
+    const detailAuroraActive = Boolean(ui.detailPanel?.classList.contains('is-open') && backgroundMode === 'aurora');
+    window.linAuroraBackground?.setVisible(detailAuroraActive);
+    if (backgroundMode === 'aurora') applyAuroraPalette();
+    else if (backgroundMode === 'liquid') applyBackgroundPalette();
+    else applySilkSettings();
   }
   function applySilkSettings() {
     const stops = silkSettings.colorStops;
     document.documentElement.style.setProperty('--liquid-a', stops[0]); document.documentElement.style.setProperty('--liquid-b', stops[1]); document.documentElement.style.setProperty('--liquid-c', stops[2]);
+    document.documentElement.style.setProperty('--silk-speed', `${Math.max(.1, 18 / Math.max(Number(silkSettings.speed) || .55, .1))}s`);
+    document.documentElement.style.setProperty('--silk-softness', String(Math.max(.2, Math.min(1.4, Number(silkSettings.softness) || .8))));
     [[ui.silkColor1, stops[0]], [ui.silkColor2, stops[1]], [ui.silkColor3, stops[2]]].forEach(([input, value]) => { if (input) input.value = value; });
     if (ui.silkSpeed) { ui.silkSpeed.value = silkSettings.speed; document.querySelector('[data-silk-speed-value]')?.replaceChildren(Number(silkSettings.speed).toFixed(2)); }
     if (ui.silkSoftness) { ui.silkSoftness.value = silkSettings.softness; document.querySelector('[data-silk-softness-value]')?.replaceChildren(Number(silkSettings.softness).toFixed(2)); }
@@ -225,6 +229,13 @@
   function activeAuroraPalette() { return auroraPalettes[isDarkTheme() ? 'dark' : 'light']; }
   function applyAuroraPalette() {
     const palette = activeAuroraPalette();
+    document.documentElement.style.setProperty('--aurora-a', palette.colorStops[0]);
+    document.documentElement.style.setProperty('--aurora-b', palette.colorStops[1]);
+    document.documentElement.style.setProperty('--aurora-c', palette.colorStops[2]);
+    document.documentElement.style.setProperty('--aurora-speed', `${Math.max(4, 10 / Math.max(Number(palette.speed) || 1, .1))}s`);
+    const blend = Math.max(0, Math.min(1, Number(palette.blend) || .5));
+    document.documentElement.style.setProperty('--aurora-alpha-a', `${Math.round(82 * blend)}%`);
+    document.documentElement.style.setProperty('--aurora-alpha-b', `${Math.round(72 * blend)}%`);
     [[ui.auroraColor1, palette.colorStops[0]], [ui.auroraColor2, palette.colorStops[1]], [ui.auroraColor3, palette.colorStops[2]]].forEach(([input, value]) => { if (input) input.value = value; });
     [['auroraSpeed', 'speed'], ['auroraAmplitude', 'amplitude'], ['auroraBlend', 'blend']].forEach(([control, key]) => { if (ui[control] && palette[key] != null) ui[control].value = palette[key]; const output = document.querySelector(`[data-${control.replace(/^aurora/, 'aurora-')}-value]`); if (output && ui[control]) output.textContent = Number(ui[control].value).toFixed(2); });
     if (ui.auroraLightMode) ui.auroraLightMode.checked = palette.lightMode === true;
@@ -761,7 +772,7 @@
     return sceneState.raycaster.intersectObjects(sceneState.cardGroup.children, false)[0]?.object || null;
   }
 
-  function setPanel(panel, open) { panel.classList.toggle('is-open', open); panel.setAttribute('aria-hidden', String(!open)); panel.inert = !open; if (panel === ui.detailPanel && frame) { frame.dataset.detailOpen = String(open); if (shell) shell.dataset.detailOpen = String(open); window.linAuroraBackground?.setVisible(open); ui.backgroundEditor?.classList.toggle('is-detail-open', Boolean(open && !ui.backgroundEditor.hidden)); } }
+  function setPanel(panel, open) { panel.classList.toggle('is-open', open); panel.setAttribute('aria-hidden', String(!open)); panel.inert = !open; if (panel === ui.detailPanel && frame) { frame.dataset.detailOpen = String(open); if (shell) shell.dataset.detailOpen = String(open); window.linAuroraBackground?.setVisible(Boolean(open && activeBackgroundMode() === 'aurora')); ui.backgroundEditor?.classList.toggle('is-detail-open', Boolean(open && !ui.backgroundEditor.hidden)); } }
   function setBackgroundEditorOpen(open) {
     if (!ui.backgroundEditor) return;
     const nextOpen = Boolean(open);
