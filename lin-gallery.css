@@ -42,17 +42,23 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
 }
 .gradient-waves-background { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; background: radial-gradient(72% 90% at var(--liquid-x) var(--liquid-y), color-mix(in srgb, var(--liquid-a) 42%, transparent), transparent 70%), radial-gradient(68% 88% at calc(100% - var(--liquid-x)) calc(100% - var(--liquid-y)), color-mix(in srgb, var(--liquid-b) 38%, transparent), transparent 72%), linear-gradient(130deg, color-mix(in srgb, var(--liquid-c) 26%, var(--paper)) 0%, var(--paper) 54%, color-mix(in srgb, var(--liquid-a) 18%, var(--paper)) 100%); animation: liquid-ether-fallback 18s ease-in-out infinite alternate; }
 .gradient-waves-background canvas { width: 100%; height: 100%; display: block; }
-html[data-background-mode="aurora"] .gradient-waves-background canvas,
-html[data-background-mode="silk"] .gradient-waves-background canvas { display: none !important; }
+.color-bends-background, .ray-gradient-waves-background { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; opacity: 0; visibility: hidden; }
+.color-bends-background canvas, .ray-gradient-waves-background canvas { width: 100%; height: 100%; display: block; }
+.ray-gradient-waves-background.is-fallback { background: radial-gradient(130% 78% at 50% 86%, color-mix(in srgb, var(--waves-crest, #fff) 58%, transparent), transparent 34%), radial-gradient(120% 88% at 18% 68%, color-mix(in srgb, var(--waves-wave, #ff9ffc) 68%, transparent), transparent 55%), radial-gradient(115% 82% at 84% 36%, color-mix(in srgb, var(--waves-horizon, #5227ff) 72%, transparent), transparent 58%), linear-gradient(180deg, #0d0a14 0%, color-mix(in srgb, var(--waves-horizon, #5227ff) 38%, #111 62%) 100%); background-size: 140% 120%, 150% 145%, 150% 130%, 100% 100%; animation: gradient-waves-fallback var(--waves-speed, 9s) ease-in-out infinite alternate; }
+@keyframes gradient-waves-fallback { from { background-position: 50% 94%, 0% 72%, 100% 24%, 50% 50%; } to { background-position: 50% 78%, 18% 58%, 82% 38%, 50% 50%; } }
+html[data-background-mode="color-bends"] .color-bends-background,
+html[data-background-mode="gradient-waves"] .ray-gradient-waves-background { opacity: 1; visibility: visible; }
+html[data-background-mode="color-bends"] .gradient-waves-background,
+html[data-background-mode="gradient-waves"] .gradient-waves-background { visibility: hidden; }
 html[data-background-mode="aurora"] .gradient-waves-background { background: radial-gradient(92% 82% at 12% 8%, color-mix(in srgb, var(--aurora-a) var(--aurora-alpha-a, 41%), transparent), transparent 64%), radial-gradient(86% 78% at 88% 22%, color-mix(in srgb, var(--aurora-b) var(--aurora-alpha-b, 36%), transparent), transparent 66%), linear-gradient(125deg, var(--aurora-c), var(--paper) 72%); background-size: 150% 150%, 140% 140%, 100% 100%; animation: aurora-home-drift var(--aurora-speed, 10s) ease-in-out infinite alternate; }
 html[data-background-mode="silk"] .gradient-waves-background { background: radial-gradient(90% 66% at 12% 18%, color-mix(in srgb, var(--liquid-a) calc(58% * var(--silk-softness, .8)), transparent), transparent 68%), radial-gradient(84% 70% at 88% 30%, color-mix(in srgb, var(--liquid-b) calc(52% * var(--silk-softness, .8)), transparent), transparent 70%), linear-gradient(135deg, color-mix(in srgb, var(--liquid-c) 32%, var(--paper)), var(--paper) 58%); background-size: 145% 145%, 135% 135%, 120% 120%; animation: silk-home-drift var(--silk-speed, 14s) ease-in-out infinite alternate; }
 @keyframes aurora-home-drift { from { background-position: 0% 0%, 100% 0%, 0% 50%; } to { background-position: 18% 14%, 78% 26%, 100% 50%; } }
 @keyframes silk-home-drift { from { background-position: 0% 20%, 100% 20%, 0% 50%; } to { background-position: 16% 4%, 82% 36%, 100% 50%; } }
-.gallery-shell[data-detail-open="true"] .gradient-waves-background { visibility: hidden; }
+.gallery-shell[data-detail-open="true"] .gradient-waves-background,
+.gallery-shell[data-detail-open="true"] .color-bends-background,
+.gallery-shell[data-detail-open="true"] .ray-gradient-waves-background { visibility: hidden !important; opacity: 0 !important; }
 html[data-background-mode="liquid"] .detail-panel { background: linear-gradient(135deg, color-mix(in srgb, var(--liquid-c) 30%, var(--paper)), var(--paper) 68%); }
 html[data-background-mode="silk"] .detail-panel { background: radial-gradient(100% 80% at 0% 0%, color-mix(in srgb, var(--liquid-a) 42%, transparent), transparent 68%), linear-gradient(135deg, color-mix(in srgb, var(--liquid-c) 30%, var(--paper)), var(--paper) 68%); }
-html[data-background-mode="liquid"] .detail-aurora-background,
-html[data-background-mode="silk"] .detail-aurora-background { display: none; }
 .gallery-shell::before { display: none; }
 @keyframes viewport-wave { from { transform: rotate(-4deg) translate3d(-2%, -1%, 0) scale(1.12); } to { transform: rotate(-4deg) translate3d(2%, 1%, 0) scale(1.18); } }
 @keyframes liquid-ether-fallback { from { background-position: 0% 0%, 100% 0%, 0% 50%; background-size: 115% 115%, 110% 110%, 120% 120%; } to { background-position: 12% 8%, 88% 16%, 100% 50%; background-size: 135% 135%, 128% 128%, 140% 140%; } }
@@ -116,6 +122,7 @@ html[data-developer-mode="true"] .build-mode { color: var(--accent); }
 .background-switcher[hidden] { display: none; }
 .background-switcher button { display: grid; gap: 4px; padding: 9px 10px; border: 1px solid transparent; background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
 .background-switcher button:hover, .background-switcher button:focus-visible, .background-switcher button[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); outline: none; }
+.detail-background-switcher { top: 42px; right: 42px; left: auto; }
 .background-switcher strong { font-size: 10px; letter-spacing: .08em; }
 .background-switcher small { color: var(--muted); font-size: 9px; }
 .background-editor[hidden] { display: none; }
@@ -230,9 +237,15 @@ html[data-developer-mode="true"] .build-mode { color: var(--accent); }
 
 .detail-panel, .about-panel, .contact-panel { padding: 29px 42px; }
 .detail-panel { isolation: isolate; overflow: hidden; }
-.detail-background-toggle { margin-left: 18px; flex: 0 0 auto; }
-.detail-head .detail-background-toggle { margin-left: auto; margin-right: 18px; }
-.detail-aurora-background { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; background: var(--paper); opacity: .98; }
+.detail-head { position: relative; min-height: 42px; }
+.detail-head .return-button { position: absolute; top: -4px; right: 0; margin: 0; }
+.detail-background-layer { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; opacity: 0; visibility: hidden; }
+.detail-background-layer canvas { display: block; width: 100%; height: 100%; }
+.detail-panel[data-detail-background-mode="aurora"] .detail-aurora-background,
+.detail-panel:not([data-detail-background-mode]) .detail-aurora-background { opacity: .98; visibility: visible; }
+.detail-liquid-background { background: radial-gradient(72% 90% at var(--liquid-x) var(--liquid-y), color-mix(in srgb, var(--liquid-a) 42%, transparent), transparent 70%), radial-gradient(68% 88% at calc(100% - var(--liquid-x)) calc(100% - var(--liquid-y)), color-mix(in srgb, var(--liquid-b) 38%, transparent), transparent 72%), linear-gradient(130deg, color-mix(in srgb, var(--liquid-c) 26%, var(--paper)) 0%, var(--paper) 54%, color-mix(in srgb, var(--liquid-a) 18%, var(--paper)) 100%); animation: liquid-ether-fallback 18s ease-in-out infinite alternate; }
+.detail-color-bends-background { background: radial-gradient(90% 110% at 15% 20%, color-mix(in srgb, var(--bends-a, #5227ff) 72%, transparent), transparent 58%), radial-gradient(85% 100% at 84% 76%, color-mix(in srgb, var(--bends-b, #ff9ffc) 68%, transparent), transparent 60%), linear-gradient(135deg, var(--bends-c, #7cff67), var(--paper) 72%); animation: color-bends-fallback 14s ease-in-out infinite alternate; }
+.detail-gradient-waves-background { background: radial-gradient(130% 78% at 50% 86%, color-mix(in srgb, var(--waves-crest, #fff) 58%, transparent), transparent 34%), radial-gradient(120% 88% at 18% 68%, color-mix(in srgb, var(--waves-wave, #ff9ffc) 68%, transparent), transparent 55%), linear-gradient(180deg, #0d0a14 0%, color-mix(in srgb, var(--waves-horizon, #5227ff) 38%, #111 62%) 100%); animation: gradient-waves-fallback 12s ease-in-out infinite alternate; }
 .detail-aurora-background canvas { display: block; width: 100%; height: 100%; }
 .detail-aurora-background.is-fallback { background: radial-gradient(120% 90% at 8% 18%, color-mix(in srgb, var(--aurora-a, #7cff67) 78%, transparent), transparent 58%), radial-gradient(110% 100% at 92% 42%, color-mix(in srgb, var(--aurora-b, #b497cf) 68%, transparent), transparent 62%), linear-gradient(125deg, var(--aurora-c, #5227ff), var(--paper) 72%); background-size: 160% 160%, 150% 150%, 100% 100%; animation: aurora-fallback-shift var(--aurora-speed, 4s) ease-in-out infinite alternate; }
 .detail-panel-inner, .about-panel-inner, .contact-panel-inner { position: relative; z-index: 1; height: 100%; }
@@ -431,9 +444,9 @@ html[data-developer-mode="true"] .detail-edit-hint { display: block; }
     gap: 12px;
   }
   .desktop-frame[data-mobile="true"] .topbar-left .person-switch-button { margin-right: auto; }
-  .desktop-frame[data-mobile="true"] .background-editor { left: 92px; width: 300px; max-height: calc(100svh - 86px); }
-  .desktop-frame[data-mobile="true"] .background-editor.is-detail-open { left: 92px; right: auto; }
+  .gallery-shell > .background-editor { left: auto; right: 12px; width: min(300px, calc(100vw - 24px)); max-height: calc(100svh - 86px); }
   .desktop-frame[data-mobile="true"] .background-switcher { left: 142px; width: 180px; }
+  .desktop-frame[data-mobile="true"] .detail-background-switcher { top: 58px; right: 12px; left: auto; width: 180px; }
   .desktop-frame[data-mobile="true"] .orbit-label-right,
   .desktop-frame[data-mobile="true"] .bottom-center[data-current-media-status] { display: none; }
 
@@ -485,7 +498,7 @@ html[data-developer-mode="true"] .detail-edit-hint { display: block; }
   .desktop-frame[data-mobile="true"] .detail-head,
   .desktop-frame[data-mobile="true"] .about-panel-inner,
   .desktop-frame[data-mobile="true"] .contact-panel-inner {
-    width: 400px;
+    width: 380px;
     margin-right: auto;
     margin-left: auto;
   }

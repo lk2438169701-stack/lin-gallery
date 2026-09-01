@@ -5,11 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#eeeae3" />
     <title>林见秋 / In Motion</title>
-    <link rel="stylesheet" href="lin-gallery.css?v=20260831-2110" />
+    <link rel="stylesheet" href="lin-gallery.css?v=20260901-0927" />
   </head>
   <body>
     <main class="gallery-shell" aria-label="林见秋人物影像展廊">
       <div class="gradient-waves-background" data-gradient-waves aria-hidden="true"></div>
+      <div class="color-bends-background" data-color-bends aria-hidden="true"></div>
+      <div class="ray-gradient-waves-background" data-ray-gradient-waves aria-hidden="true"></div>
       <div class="desktop-frame" id="desktop-frame">
         <div class="screen-ui">
           <header class="topbar">
@@ -25,9 +27,10 @@
               <button class="background-toggle" type="button" data-open-background-editor aria-expanded="false" aria-controls="background-editor">背景</button>
               <button class="background-toggle background-switch-toggle" type="button" data-open-background-switcher aria-expanded="false" aria-controls="background-switcher">背景切换</button>
               <div class="background-switcher" id="background-switcher" data-background-switcher hidden>
-                <button type="button" data-background-mode="liquid"><strong>Liquid Ether</strong><small>流体波纹 · 鼠标交互</small></button>
+                <button type="button" data-background-mode="liquid"><strong>Liquid Ether</strong><small>流体以太 · 鼠标交互</small></button>
+                <button type="button" data-background-mode="color-bends"><strong>Color Bends</strong><small>彩色弯曲 · 流动光带</small></button>
                 <button type="button" data-background-mode="aurora"><strong>Aurora</strong><small>极光渐变 · 色彩流动</small></button>
-                <button type="button" data-background-mode="silk"><strong>Silk</strong><small>丝绸波面 · 柔和动画</small></button>
+                <button type="button" data-background-mode="gradient-waves"><strong>Gradient Waves</strong><small>渐变波浪 · 雾化地平线</small></button>
               </div>
               <div class="background-editor" id="background-editor" data-background-editor hidden>
                 <div class="background-editor-head"><strong>流体背景 · Liquid Ether</strong><button type="button" data-close-background-editor aria-label="关闭流体背景编辑器">×</button></div>
@@ -63,16 +66,52 @@
                   </div>
                   <button class="background-reset" type="button" data-reset-aurora>恢复 Aurora 默认</button>
                 </div>
-                <div class="background-editor-section" data-background-section="silk">
-                  <div class="background-editor-subhead"><strong>丝绸背景 · Silk</strong><span>主页背景</span></div>
-                  <label>颜色 1<input type="color" data-silk-color1 value="#6e5b9b" /></label>
-                  <label>颜色 2<input type="color" data-silk-color2 value="#f0c6dc" /></label>
-                  <label>颜色 3<input type="color" data-silk-color3 value="#eeeae3" /></label>
+                <div class="background-editor-section" data-background-section="color-bends">
+                  <div class="background-editor-subhead"><strong>彩色弯曲 · Color Bends</strong><span>主页背景</span></div>
+                  <label>颜色 1<input type="color" data-bends-color1 value="#5227FF" /></label>
+                  <label>颜色 2<input type="color" data-bends-color2 value="#FF9FFC" /></label>
+                  <label>颜色 3<input type="color" data-bends-color3 value="#7CFF67" /></label>
                   <div class="background-editor-grid">
-                    <label>速度<input type="range" min="0.1" max="2" step="0.05" value="0.55" data-silk-speed /><output data-silk-speed-value>0.55</output></label>
-                    <label>柔和程度<input type="range" min="0.2" max="1.4" step="0.05" value="0.8" data-silk-softness /><output data-silk-softness-value>0.80</output></label>
+                    <label>旋转角度<input type="range" min="-180" max="180" step="1" value="90" data-bends-rotation /><output data-bends-rotation-value>90</output></label>
+                    <label>自动旋转<input type="range" min="-5" max="5" step="1" value="0" data-bends-auto-rotate /><output data-bends-auto-rotate-value>0</output></label>
+                    <label>速度<input type="range" min="0" max="1" step="0.01" value="0.2" data-bends-speed /><output data-bends-speed-value>0.20</output></label>
+                    <label>缩放<input type="range" min="0.2" max="5" step="0.1" value="1" data-bends-scale /><output data-bends-scale-value>1.0</output></label>
+                    <label>频率<input type="range" min="0" max="5" step="0.1" value="1" data-bends-frequency /><output data-bends-frequency-value>1.0</output></label>
+                    <label>扭曲强度<input type="range" min="0.9" max="1" step="0.005" value="1" data-bends-warp /><output data-bends-warp-value>1.00</output></label>
+                    <label>鼠标影响<input type="range" min="0" max="2" step="0.05" value="1" data-bends-mouse /><output data-bends-mouse-value>1.00</output></label>
+                    <label>视差<input type="range" min="0" max="2" step="0.05" value="0.5" data-bends-parallax /><output data-bends-parallax-value>0.50</output></label>
+                    <label>噪点<input type="range" min="0" max="1" step="0.01" value="0.15" data-bends-noise /><output data-bends-noise-value>0.15</output></label>
+                    <label>迭代次数<input type="range" min="1" max="5" step="1" value="1" data-bends-iterations /><output data-bends-iterations-value>1</output></label>
+                    <label>强度<input type="range" min="0.1" max="2" step="0.1" value="1.5" data-bends-intensity /><output data-bends-intensity-value>1.5</output></label>
+                    <label>色带宽度<input type="range" min="1" max="20" step="0.5" value="6" data-bends-band /><output data-bends-band-value>6.0</output></label>
                   </div>
-                  <button class="background-reset" type="button" data-reset-silk>恢复 Silk 默认</button>
+                  <button class="background-reset" type="button" data-reset-bends>恢复 Color Bends 默认</button>
+                </div>
+                <div class="background-editor-section" data-background-section="gradient-waves">
+                  <div class="background-editor-subhead"><strong>渐变波浪 · Gradient Waves</strong><span>主页背景</span></div>
+                  <label>地平线颜色<input type="color" data-waves-horizon value="#5227FF" /></label>
+                  <label>波浪颜色<input type="color" data-waves-wave value="#FF9FFC" /></label>
+                  <label>波峰颜色<input type="color" data-waves-crest value="#FFFFFF" /></label>
+                  <div class="background-editor-grid">
+                    <label>速度<input type="range" min="0" max="2" step="0.05" value="0.4" data-waves-speed /><output data-waves-speed-value>0.40</output></label>
+                    <label>振幅<input type="range" min="0" max="5" step="0.05" value="2.5" data-waves-amplitude /><output data-waves-amplitude-value>2.50</output></label>
+                    <label>波浪缩放<input type="range" min="0.3" max="3" step="0.05" value="0.6" data-waves-scale /><output data-waves-scale-value>0.60</output></label>
+                    <label>波长比例<input type="range" min="0.3" max="3" step="0.05" value="0.9" data-waves-ratio /><output data-waves-ratio-value>0.90</output></label>
+                    <label>水平涌动<input type="range" min="0" max="40" step="0.5" value="35" data-waves-swell /><output data-waves-swell-value>35.0</output></label>
+                    <label>湍流<input type="range" min="0" max="60" step="0.5" value="20" data-waves-turbulence /><output data-waves-turbulence-value>20.0</output></label>
+                    <label>倾角<input type="range" min="0.2" max="1.3" step="0.01" value="1.11" data-waves-tilt /><output data-waves-tilt-value>1.11</output></label>
+                    <label>缩放<input type="range" min="0.4" max="2.5" step="0.05" value="1" data-waves-zoom /><output data-waves-zoom-value>1.00</output></label>
+                    <label>地平线高度<input type="range" min="2" max="10" step="0.1" value="5.5" data-waves-height /><output data-waves-height-value>5.5</output></label>
+                    <label>雾化深度<input type="range" min="5" max="60" step="1" value="15" data-waves-fog /><output data-waves-fog-value>15</output></label>
+                    <label>亮度<input type="range" min="0.2" max="2" step="0.05" value="1" data-waves-brightness /><output data-waves-brightness-value>1.00</output></label>
+                    <label>透明度<input type="range" min="0" max="1" step="0.01" value="1" data-waves-opacity /><output data-waves-opacity-value>1.00</output></label>
+                    <label>视差力度<input type="range" min="0" max="1" step="0.01" value="0.5" data-waves-parallax /><output data-waves-parallax-value>0.50</output></label>
+                    <label>噪点强度<input type="range" min="0" max="0.3" step="0.01" value="0.05" data-waves-grain-intensity /><output data-waves-grain-intensity-value>0.05</output></label>
+                    <label>细节等级<select data-waves-detail><option value="low">低</option><option value="medium" selected>中</option><option value="high">高</option></select></label>
+                    <label class="background-check"><span>鼠标视差</span><input type="checkbox" checked data-waves-mouse /></label>
+                    <label class="background-check"><span>胶片噪点</span><input type="checkbox" checked data-waves-grain /></label>
+                  </div>
+                  <button class="background-reset" type="button" data-reset-waves>恢复 Gradient Waves 默认</button>
                 </div>
               </div>
             </div>
@@ -145,7 +184,10 @@
         </div>
 
         <div class="detail-panel" data-detail-panel role="dialog" aria-modal="true" aria-labelledby="detail-title" aria-hidden="true">
-          <div class="detail-aurora-background" data-detail-aurora aria-hidden="true"></div>
+          <div class="detail-background-layer detail-liquid-background" data-detail-liquid aria-hidden="true"></div>
+          <div class="detail-background-layer detail-color-bends-background" data-detail-color-bends aria-hidden="true"></div>
+          <div class="detail-background-layer detail-aurora-background" data-detail-aurora aria-hidden="true"></div>
+          <div class="detail-background-layer detail-gradient-waves-background" data-detail-gradient-waves aria-hidden="true"></div>
           <div class="detail-panel-inner">
             <div class="detail-head">
               <div class="detail-taxonomy-head">
@@ -157,7 +199,6 @@
                 <span>返回</span>
                 <span class="return-arrow" aria-hidden="true"></span>
               </button>
-              <button class="background-toggle detail-background-toggle" type="button" data-open-background-editor aria-expanded="false" aria-controls="background-editor">背景</button>
             </div>
             <div class="detail-grid">
                 <div class="detail-visual">
@@ -256,11 +297,14 @@
       </div>
       <canvas id="gallery-canvas" tabindex="0" aria-label="3D 影像卡片展廊。悬停查看，点击打开"></canvas>
     </main>
-    <script src="lin-gallery-data.js?v=20260831-2110"></script>
+    <script src="lin-gallery-data.js?v=20260901-0927"></script>
     <script src="vendor/gsap.min.js?v=3.15.0"></script>
     <script src="vendor/three.min.js"></script>
-    <script src="gradient-waves.js?v=20260831-2110"></script>
-    <script src="aurora-background.js?v=20260831-2110"></script>
-    <script src="lin-gallery.js?v=20260831-2110"></script>
+    <script src="gradient-waves.js?v=20260901-0927"></script>
+    <script src="color-bends-background.js?v=20260901-0927"></script>
+    <script src="gradient-waves-background.js?v=20260901-0927"></script>
+    <script src="gradient-waves-three.js?v=20260901-0927"></script>
+    <script src="aurora-background.js?v=20260901-0927"></script>
+    <script src="lin-gallery.js?v=20260901-0927"></script>
   </body>
 </html>
