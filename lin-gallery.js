@@ -174,12 +174,40 @@
   const loading = document.querySelector('[data-loading]');
   const fallback = document.querySelector('[data-fallback]');
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-  const state = { progress: 0, target: 0, velocity: 0, last: performance.now(), down: false, pointerX: 0, pointerStartX: 0, pointerStartY: 0, pointerHitIndex: -1, dragScale: 1, dragSensitivity: .008, hoveredIndex: -1, cursorNdcX: 0, cursorNdcY: 0, particlePointerX: 0, particlePointerY: 0, particleTargetX: 0, particleTargetY: 0, auto: !reducedMotion.matches, activePanel: null, opener: null, switchProgress: 1, statusIndex: -1, closingPanel: false, panelTimeline: null, detailCardIndex: -1, detailSubtypeIndex: 0, detailPhotoIndex: 0, detailDrag: null, coverDrag: null, activeCardIndex: -1 };
+  const state = { progress: 0, target: 0, velocity: 0, last: performance.now(), down: false, pointerX: 0, pointerStartX: 0, pointerStartY: 0, pointerHitIndex: -1, dragScale: 1, dragSensitivity: .008, hoveredIndex: -1, cursorNdcX: 0, cursorNdcY: 0, particlePointerX: 0, particlePointerY: 0, particleTargetX: 0, particleTargetY: 0, auto: !reducedMotion.matches, activePanel: null, scenePaused: false, opener: null, switchProgress: 1, statusIndex: -1, closingPanel: false, panelTimeline: null, detailCardIndex: -1, detailSubtypeIndex: 0, detailPhotoIndex: 0, detailDrag: null, detailBackgroundDrag: null, homeBackgroundDrag: null, coverDrag: null, activeCardIndex: -1 };
+  const DETAIL_PHOTO_BACKGROUNDS = [
+    { src: 'assets/lin-gallery/detail-backgrounds/detail-bg-01.jpg', title: '静谧肖像', meta: '背景 01' },
+    { src: 'assets/lin-gallery/detail-backgrounds/detail-bg-02.jpg', title: '清晨饮品', meta: '背景 02' },
+    { src: 'assets/lin-gallery/detail-backgrounds/detail-bg-03.jpg', title: '厨房日光', meta: '背景 03' },
+    { src: 'assets/lin-gallery/detail-backgrounds/detail-bg-04.jpg', title: '凝视特写', meta: '背景 04 · 16:9' }
+  ];
+  let detailPhotoBackgroundIndex = (() => {
+    const value = Number.parseInt(localStorage.getItem('lin-gallery-detail-photo-background-index') || '0', 10);
+    return Number.isFinite(value) && value >= 0 && value < DETAIL_PHOTO_BACKGROUNDS.length ? value : 0;
+  })();
+  const DETAIL_PHOTO_BACKGROUND_DEFAULTS = { x: 50, y: 50, zoom: 1.2 };
+  let detailPhotoBackgroundSettings = (() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('lin-gallery-detail-photo-background-settings') || 'null');
+      return DETAIL_PHOTO_BACKGROUNDS.map((_, index) => { const value = { ...DETAIL_PHOTO_BACKGROUND_DEFAULTS, ...(saved?.[index] || {}) }; value.zoom = Math.max(1.2, Number(value.zoom) || 1.2); return value; });
+    } catch (_) { return DETAIL_PHOTO_BACKGROUNDS.map(() => ({ ...DETAIL_PHOTO_BACKGROUND_DEFAULTS })); }
+  })();
+  let homePhotoBackgroundIndex = (() => {
+    const value = Number.parseInt(localStorage.getItem('lin-gallery-home-photo-background-index') || '0', 10);
+    return Number.isFinite(value) && value >= 0 && value < DETAIL_PHOTO_BACKGROUNDS.length ? value : 0;
+  })();
+  let homePhotoBackgroundSettings = (() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('lin-gallery-home-photo-background-settings') || 'null');
+      return DETAIL_PHOTO_BACKGROUNDS.map((_, index) => { const value = { x: 50, y: 50, zoom: 1.2, ...(saved?.[index] || {}) }; value.zoom = Math.max(1.2, Number(value.zoom) || 1.2); return value; });
+    } catch (_) { return DETAIL_PHOTO_BACKGROUNDS.map(() => ({ x: 50, y: 50, zoom: 1.2 })); }
+  })();
   const sceneState = { camera: null, cardGroup: null, raycaster: null, pointer: null, THREE: null, antigravity: null, renderer: null, floor: null, silk: null };
   const ui = {
-    title: document.querySelector('[data-current-title]'), count: document.querySelector('[data-current-count]'), mediaStatus: document.querySelector('[data-current-media-status]'), edgeIndex: document.querySelector('[data-edge-index]'), edgeRange: document.querySelector('[data-edge-range]'), menuPanel: document.querySelector('[data-menu-panel]'), menuButton: document.querySelector('[data-open-menu]'), menuList: document.querySelector('[data-menu-list]'), detailPanel: document.querySelector('[data-detail-panel]'), detailLiquid: document.querySelector('[data-detail-liquid]'), detailColorBends: document.querySelector('[data-detail-color-bends]'), detailAurora: document.querySelector('[data-detail-aurora]'), detailGradientWaves: document.querySelector('[data-detail-gradient-waves]'), detailBackgroundSwitchOpen: document.querySelector('[data-open-detail-background-switcher]'), detailBackgroundSwitcher: document.querySelector('[data-detail-background-switcher]'), detailBackgroundModes: [...document.querySelectorAll('[data-detail-background-mode]')], aboutPanel: document.querySelector('[data-about-panel]'), contactPanel: document.querySelector('[data-contact-panel]'), personPanel: document.querySelector('[data-person-panel]'), personButton: document.querySelector('[data-open-person]'), personList: document.querySelector('[data-person-list]'), personCode: document.querySelector('[data-current-person-code]'), personName: document.querySelector('[data-current-person-name]'), personFooter: document.querySelector('[data-current-person-footer]'), heroCopy: document.querySelector('.hero-copy'), heroRail: document.querySelector('.hero-rail'), heroIndex: document.querySelector('[data-hero-index]'), heroName: document.querySelector('[data-hero-name]'), heroMode: document.querySelector('[data-hero-mode]'), heroNote: document.querySelector('[data-hero-note]'), detailVisual: document.querySelector('.detail-visual'), detailSlot: document.querySelector('[data-detail-slot]'), detailPhotoRail: document.querySelector('[data-detail-photo-rail]'), detailPhotoIndex: document.querySelector('[data-detail-photo-index]'), detailLabel: document.querySelector('[data-detail-label]'), detailTitle: document.querySelector('[data-detail-title]'), detailDescription: document.querySelector('[data-detail-description]'), detailType: document.querySelector('[data-detail-type]'), detailStatus: document.querySelector('[data-detail-status]'), detailSubtypes: document.querySelector('[data-detail-subtypes]'), detailSlotTitle: document.querySelector('[data-detail-slot-title]'), detailSlotNote: document.querySelector('[data-detail-slot-note]'), detailEditHint: document.querySelector('[data-detail-edit-hint]'), detailMediaActions: document.querySelector('[data-detail-media-actions]'), detailReplace: document.querySelector('[data-detail-replace]'), detailReplaceFile: document.querySelector('[data-detail-replace-file]'), inlineEditor: document.querySelector('[data-inline-editor]'), inlineEditorTrigger: document.querySelector('[data-open-inline-editor]'), inlineEditorClose: document.querySelector('[data-close-inline-editor]'), inlineSubtypeName: document.querySelector('[data-inline-subtype-name]'), inlineCardTitle: document.querySelector('[data-inline-card-title]'), inlineCardLabel: document.querySelector('[data-inline-card-label]'), inlineCardCategory: document.querySelector('[data-inline-card-category]'), inlineCardCopy: document.querySelector('[data-inline-card-copy]'), inlineSubtypeCopy: document.querySelector('[data-inline-subtype-copy]'), inlineCardImage: document.querySelector('[data-inline-card-image]'), inlineCoverPreview: document.querySelector('[data-inline-cover-preview]'), inlineDropzone: document.querySelector('[data-inline-dropzone]'), inlineFile: document.querySelector('[data-inline-file]'), inlinePhotoList: document.querySelector('[data-inline-photo-list]'), inlineEmpty: document.querySelector('[data-inline-empty]'), inlineStatus: document.querySelector('[data-inline-status]'), inlineUndo: document.querySelector('[data-inline-undo]'), inlineSave: document.querySelector('[data-inline-save]'), themeToggle: document.querySelector('[data-theme-toggle]'), backgroundEditor: document.querySelector('[data-background-editor]'), backgroundOpen: document.querySelector('[data-open-background-editor]'), backgroundOpenButtons: [...document.querySelectorAll('[data-open-background-editor]')], backgroundSwitcher: document.querySelector('[data-background-switcher]'), backgroundSwitchOpen: document.querySelector('[data-open-background-switcher]'), backgroundModes: [...document.querySelectorAll('[data-background-mode]')], backgroundClose: document.querySelector('[data-close-background-editor]'), backgroundReset: document.querySelector('[data-reset-background]'), auroraReset: document.querySelector('[data-reset-aurora]'), silkReset: document.querySelector('[data-reset-silk]'), bgColor1: document.querySelector('[data-bg-color1]'), bgColor2: document.querySelector('[data-bg-color2]'), bgColor3: document.querySelector('[data-bg-color3]'), bgMouseForce: document.querySelector('[data-bg-mouse-force]'), bgCursorSize: document.querySelector('[data-bg-cursor-size]'), bgResolution: document.querySelector('[data-bg-resolution]'), bgAutoSpeed: document.querySelector('[data-bg-auto-speed]'), bgAutoIntensity: document.querySelector('[data-bg-auto-intensity]'), bgPressure: document.querySelector('[data-bg-pressure]'), bgBounce: document.querySelector('[data-bg-bounce]'), bgAutoAnimate: document.querySelector('[data-bg-auto-animate]'), bgViscous: document.querySelector('[data-bg-viscous]'), bgViscousCoef: document.querySelector('[data-bg-viscous-coef]'), bgViscousIterations: document.querySelector('[data-bg-viscous-iterations]'), auroraColor1: document.querySelector('[data-aurora-color1]'), auroraColor2: document.querySelector('[data-aurora-color2]'), auroraColor3: document.querySelector('[data-aurora-color3]'), auroraSpeed: document.querySelector('[data-aurora-speed]'), auroraAmplitude: document.querySelector('[data-aurora-amplitude]'), auroraBlend: document.querySelector('[data-aurora-blend]'), auroraLightMode: document.querySelector('[data-aurora-light-mode]'), silkColor1: document.querySelector('[data-silk-color1]'), silkColor2: document.querySelector('[data-silk-color2]'), silkColor3: document.querySelector('[data-silk-color3]'), silkSpeed: document.querySelector('[data-silk-speed]'), silkSoftness: document.querySelector('[data-silk-softness]')
+    title: document.querySelector('[data-current-title]'), count: document.querySelector('[data-current-count]'), mediaStatus: document.querySelector('[data-current-media-status]'), edgeIndex: document.querySelector('[data-edge-index]'), edgeRange: document.querySelector('[data-edge-range]'), menuPanel: document.querySelector('[data-menu-panel]'), menuButton: document.querySelector('[data-open-menu]'), menuList: document.querySelector('[data-menu-list]'), detailPanel: document.querySelector('[data-detail-panel]'), detailLiquid: document.querySelector('[data-detail-liquid]'), detailColorBends: document.querySelector('[data-detail-color-bends]'), detailAurora: document.querySelector('[data-detail-aurora]'), detailGradientWaves: document.querySelector('[data-detail-gradient-waves]'), detailBackgroundSwitchOpen: document.querySelector('[data-open-detail-background-switcher]'), detailBackgroundSwitcher: document.querySelector('[data-detail-background-switcher]'), detailBackgroundModes: [...document.querySelectorAll('[data-detail-background-mode]')], detailPhotoBackgroundLayer: document.querySelector('[data-detail-photo-background-layer]'), detailPhotoBackgroundImage: document.querySelector('[data-detail-photo-background-image]'), detailPhotoBackgroundToggle: document.querySelector('[data-open-detail-photo-background]'), detailPhotoBackgroundSwitcher: document.querySelector('[data-detail-photo-background-switcher]'), detailPhotoBackgroundOptions: document.querySelector('[data-detail-photo-background-options]'), detailPhotoBackgroundEditorToggle: document.querySelector('[data-toggle-detail-photo-background-editor]'), detailPhotoBackgroundEditor: document.querySelector('[data-detail-photo-background-editor]'), detailPhotoBackgroundX: document.querySelector('[data-detail-photo-background-x]'), detailPhotoBackgroundY: document.querySelector('[data-detail-photo-background-y]'), detailPhotoBackgroundZoom: document.querySelector('[data-detail-photo-background-zoom]'), detailPhotoBackgroundReset: document.querySelector('[data-reset-detail-photo-background]'), aboutPanel: document.querySelector('[data-about-panel]'), contactPanel: document.querySelector('[data-contact-panel]'), personPanel: document.querySelector('[data-person-panel]'), personButton: document.querySelector('[data-open-person]'), personList: document.querySelector('[data-person-list]'), personCode: document.querySelector('[data-current-person-code]'), personName: document.querySelector('[data-current-person-name]'), personFooter: document.querySelector('[data-current-person-footer]'), heroCopy: document.querySelector('.hero-copy'), heroRail: document.querySelector('.hero-rail'), heroIndex: document.querySelector('[data-hero-index]'), heroName: document.querySelector('[data-hero-name]'), heroMode: document.querySelector('[data-hero-mode]'), heroNote: document.querySelector('[data-hero-note]'), detailVisual: document.querySelector('.detail-visual'), detailSlot: document.querySelector('[data-detail-slot]'), detailPhotoRail: document.querySelector('[data-detail-photo-rail]'), detailPhotoIndex: document.querySelector('[data-detail-photo-index]'), detailLabel: document.querySelector('[data-detail-label]'), detailTitle: document.querySelector('[data-detail-title]'), detailDescription: document.querySelector('[data-detail-description]'), detailType: document.querySelector('[data-detail-type]'), detailStatus: document.querySelector('[data-detail-status]'), detailSubtypes: document.querySelector('[data-detail-subtypes]'), detailSlotTitle: document.querySelector('[data-detail-slot-title]'), detailSlotNote: document.querySelector('[data-detail-slot-note]'), detailEditHint: document.querySelector('[data-detail-edit-hint]'), detailMediaActions: document.querySelector('[data-detail-media-actions]'), detailReplace: document.querySelector('[data-detail-replace]'), detailReplaceFile: document.querySelector('[data-detail-replace-file]'), inlineEditor: document.querySelector('[data-inline-editor]'), inlineEditorTrigger: document.querySelector('[data-open-inline-editor]'), inlineEditorClose: document.querySelector('[data-close-inline-editor]'), inlineSubtypeName: document.querySelector('[data-inline-subtype-name]'), inlineCardTitle: document.querySelector('[data-inline-card-title]'), inlineCardLabel: document.querySelector('[data-inline-card-label]'), inlineCardCategory: document.querySelector('[data-inline-card-category]'), inlineCardCopy: document.querySelector('[data-inline-card-copy]'), inlineSubtypeCopy: document.querySelector('[data-inline-subtype-copy]'), inlineCardImage: document.querySelector('[data-inline-card-image]'), inlineCoverPreview: document.querySelector('[data-inline-cover-preview]'), inlineDropzone: document.querySelector('[data-inline-dropzone]'), inlineFile: document.querySelector('[data-inline-file]'), inlinePhotoList: document.querySelector('[data-inline-photo-list]'), inlineEmpty: document.querySelector('[data-inline-empty]'), inlineStatus: document.querySelector('[data-inline-status]'), inlineUndo: document.querySelector('[data-inline-undo]'), inlineSave: document.querySelector('[data-inline-save]'), themeToggle: document.querySelector('[data-theme-toggle]'), backgroundEditor: document.querySelector('[data-background-editor]'), backgroundOpen: document.querySelector('[data-open-background-editor]'), backgroundOpenButtons: [...document.querySelectorAll('[data-open-background-editor]')], backgroundSwitcher: document.querySelector('[data-background-switcher]'), backgroundSwitchOpen: document.querySelector('[data-open-background-switcher]'), backgroundModes: [...document.querySelectorAll('[data-background-mode]')], backgroundClose: document.querySelector('[data-close-background-editor]'), backgroundReset: document.querySelector('[data-reset-background]'), auroraReset: document.querySelector('[data-reset-aurora]'), silkReset: document.querySelector('[data-reset-silk]'), bgColor1: document.querySelector('[data-bg-color1]'), bgColor2: document.querySelector('[data-bg-color2]'), bgColor3: document.querySelector('[data-bg-color3]'), bgMouseForce: document.querySelector('[data-bg-mouse-force]'), bgCursorSize: document.querySelector('[data-bg-cursor-size]'), bgResolution: document.querySelector('[data-bg-resolution]'), bgAutoSpeed: document.querySelector('[data-bg-auto-speed]'), bgAutoIntensity: document.querySelector('[data-bg-auto-intensity]'), bgPressure: document.querySelector('[data-bg-pressure]'), bgBounce: document.querySelector('[data-bg-bounce]'), bgAutoAnimate: document.querySelector('[data-bg-auto-animate]'), bgViscous: document.querySelector('[data-bg-viscous]'), bgViscousCoef: document.querySelector('[data-bg-viscous-coef]'), bgViscousIterations: document.querySelector('[data-bg-viscous-iterations]'), auroraColor1: document.querySelector('[data-aurora-color1]'), auroraColor2: document.querySelector('[data-aurora-color2]'), auroraColor3: document.querySelector('[data-aurora-color3]'), auroraSpeed: document.querySelector('[data-aurora-speed]'), auroraAmplitude: document.querySelector('[data-aurora-amplitude]'), auroraBlend: document.querySelector('[data-aurora-blend]'), auroraLightMode: document.querySelector('[data-aurora-light-mode]'), silkColor1: document.querySelector('[data-silk-color1]'), silkColor2: document.querySelector('[data-silk-color2]'), silkColor3: document.querySelector('[data-silk-color3]'), silkSpeed: document.querySelector('[data-silk-speed]'), silkSoftness: document.querySelector('[data-silk-softness]')
   };
   Object.assign(ui, {
+    homePhotoBackgroundLayer: document.querySelector('[data-home-photo-background-layer]'), homePhotoBackgroundOptions: document.querySelector('[data-home-photo-background-options]'), homePhotoBackgroundEditorToggle: document.querySelector('[data-toggle-home-photo-background-editor]'), homePhotoBackgroundEditor: document.querySelector('[data-home-photo-background-editor]'), homePhotoBackgroundX: document.querySelector('[data-home-photo-background-x]'), homePhotoBackgroundY: document.querySelector('[data-home-photo-background-y]'), homePhotoBackgroundZoom: document.querySelector('[data-home-photo-background-zoom]'), homePhotoBackgroundReset: document.querySelector('[data-reset-home-photo-background]'), backgroundFamilies: [...document.querySelectorAll('[data-background-family]')], backgroundFamilyGroups: [...document.querySelectorAll('[data-background-family-group]')],
     bendsHost: document.querySelector('[data-color-bends]'), bendsColor1: document.querySelector('[data-bends-color1]'), bendsColor2: document.querySelector('[data-bends-color2]'), bendsColor3: document.querySelector('[data-bends-color3]'), bendsRotation: document.querySelector('[data-bends-rotation]'), bendsAutoRotate: document.querySelector('[data-bends-auto-rotate]'), bendsSpeed: document.querySelector('[data-bends-speed]'), bendsScale: document.querySelector('[data-bends-scale]'), bendsFrequency: document.querySelector('[data-bends-frequency]'), bendsWarp: document.querySelector('[data-bends-warp]'), bendsMouse: document.querySelector('[data-bends-mouse]'), bendsParallax: document.querySelector('[data-bends-parallax]'), bendsNoise: document.querySelector('[data-bends-noise]'), bendsIterations: document.querySelector('[data-bends-iterations]'), bendsIntensity: document.querySelector('[data-bends-intensity]'), bendsBand: document.querySelector('[data-bends-band]'), bendsReset: document.querySelector('[data-reset-bends]'),
     wavesHost: document.querySelector('[data-ray-gradient-waves]'), wavesHorizon: document.querySelector('[data-waves-horizon]'), wavesWave: document.querySelector('[data-waves-wave]'), wavesCrest: document.querySelector('[data-waves-crest]'), wavesSpeed: document.querySelector('[data-waves-speed]'), wavesAmplitude: document.querySelector('[data-waves-amplitude]'), wavesScale: document.querySelector('[data-waves-scale]'), wavesRatio: document.querySelector('[data-waves-ratio]'), wavesSwell: document.querySelector('[data-waves-swell]'), wavesTurbulence: document.querySelector('[data-waves-turbulence]'), wavesTilt: document.querySelector('[data-waves-tilt]'), wavesZoom: document.querySelector('[data-waves-zoom]'), wavesHeight: document.querySelector('[data-waves-height]'), wavesFog: document.querySelector('[data-waves-fog]'), wavesBrightness: document.querySelector('[data-waves-brightness]'), wavesOpacity: document.querySelector('[data-waves-opacity]'), wavesParallax: document.querySelector('[data-waves-parallax]'), wavesGrainIntensity: document.querySelector('[data-waves-grain-intensity]'), wavesDetail: document.querySelector('[data-waves-detail]'), wavesMouse: document.querySelector('[data-waves-mouse]'), wavesGrain: document.querySelector('[data-waves-grain]'), wavesReset: document.querySelector('[data-reset-waves]')
   });
@@ -210,6 +238,147 @@
   function activeColorBendsSettings() { return backgroundContext === 'detail' ? detailColorBendsSettings : colorBendsSettings; }
   function activeGradientWavesSettings() { return backgroundContext === 'detail' ? detailGradientWavesSettings : gradientWavesSettings; }
   function activeAuroraPalettes() { return backgroundContext === 'detail' ? detailAuroraPalettes : auroraPalettes; }
+  function applyDetailPhotoBackground(index = detailPhotoBackgroundIndex) {
+    const next = Number.isFinite(Number(index)) ? Math.max(0, Math.min(DETAIL_PHOTO_BACKGROUNDS.length - 1, Number(index))) : 0;
+    detailPhotoBackgroundIndex = next;
+    localStorage.setItem('lin-gallery-detail-photo-background-index', String(next));
+    const photo = DETAIL_PHOTO_BACKGROUNDS[next];
+    const settings = detailPhotoBackgroundSettings[next] || DETAIL_PHOTO_BACKGROUND_DEFAULTS;
+    if (ui.detailPhotoBackgroundImage) {
+      if (ui.detailPhotoBackgroundImage.getAttribute('src') !== photo.src) {
+        ui.detailPhotoBackgroundImage.setAttribute('src', photo.src);
+      }
+      ui.detailPhotoBackgroundImage.alt = `${photo.title}详情页背景`;
+      ui.detailPhotoBackgroundImage.style.objectPosition = `${settings.x}% ${settings.y}%`;
+      ui.detailPhotoBackgroundImage.style.transform = `scale(${settings.zoom})`;
+    }
+    if (ui.detailPhotoBackgroundLayer) {
+      ui.detailPhotoBackgroundLayer.style.backgroundImage = `url("${photo.src}")`;
+      ui.detailPhotoBackgroundLayer.style.backgroundPosition = `${settings.x}% ${settings.y}%`;
+      ui.detailPhotoBackgroundLayer.style.backgroundSize = `${settings.zoom * 100}%`;
+    }
+    ui.detailPhotoBackgroundLayer?.classList.toggle('is-active', ui.detailPanel?.classList.contains('is-open'));
+    ui.detailPhotoBackgroundOptions?.querySelectorAll('[data-detail-photo-background-index]').forEach((button) => {
+      const active = Number(button.dataset.detailPhotoBackgroundIndex) === next;
+      button.classList.toggle('is-selected', active);
+      button.setAttribute('aria-pressed', String(active));
+    });
+    if (ui.detailPhotoBackgroundX) ui.detailPhotoBackgroundX.value = settings.x;
+    if (ui.detailPhotoBackgroundY) ui.detailPhotoBackgroundY.value = settings.y;
+    if (ui.detailPhotoBackgroundZoom) ui.detailPhotoBackgroundZoom.value = settings.zoom;
+    document.querySelector('[data-detail-photo-background-x-value]')?.replaceChildren(`${settings.x}%`);
+    document.querySelector('[data-detail-photo-background-y-value]')?.replaceChildren(`${settings.y}%`);
+    document.querySelector('[data-detail-photo-background-zoom-value]')?.replaceChildren(`${Number(settings.zoom).toFixed(2)}×`);
+  }
+  function persistDetailPhotoBackgroundSettings() { localStorage.setItem('lin-gallery-detail-photo-background-settings', JSON.stringify(detailPhotoBackgroundSettings)); }
+  function updateDetailPhotoBackgroundSetting(key, value) {
+    const settings = detailPhotoBackgroundSettings[detailPhotoBackgroundIndex] || (detailPhotoBackgroundSettings[detailPhotoBackgroundIndex] = { ...DETAIL_PHOTO_BACKGROUND_DEFAULTS });
+    settings[key] = key === 'zoom' ? Number(value) : Math.round(Number(value));
+    persistDetailPhotoBackgroundSettings();
+    applyDetailPhotoBackground(detailPhotoBackgroundIndex);
+  }
+  function resetDetailPhotoBackground() {
+    detailPhotoBackgroundSettings[detailPhotoBackgroundIndex] = { ...DETAIL_PHOTO_BACKGROUND_DEFAULTS };
+    persistDetailPhotoBackgroundSettings();
+    applyDetailPhotoBackground(detailPhotoBackgroundIndex);
+  }
+  function beginDetailPhotoBackgroundDrag(event) {
+    if (!ui.detailPhotoBackgroundLayer?.classList.contains('is-editing')) return;
+    if (event.target.closest?.('button, input, textarea, select, a, .detail-photo-background-switcher')) return;
+    state.detailBackgroundDrag = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, start: { ...(detailPhotoBackgroundSettings[detailPhotoBackgroundIndex] || DETAIL_PHOTO_BACKGROUND_DEFAULTS) } };
+    try { ui.detailPhotoBackgroundLayer.setPointerCapture?.(event.pointerId); } catch (_) { /* capture may belong to the transparent panel */ }
+    event.preventDefault();
+  }
+  function moveDetailPhotoBackgroundDrag(event) {
+    if (!state.detailBackgroundDrag) return;
+    const rect = ui.detailPhotoBackgroundLayer.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const start = state.detailBackgroundDrag.start;
+    updateDetailPhotoBackgroundSetting('x', clamp(start.x - ((event.clientX - state.detailBackgroundDrag.startX) / rect.width) * 100, 0, 100));
+    updateDetailPhotoBackgroundSetting('y', clamp(start.y - ((event.clientY - state.detailBackgroundDrag.startY) / rect.height) * 100, 0, 100));
+  }
+  function endDetailPhotoBackgroundDrag(event) {
+    if (!state.detailBackgroundDrag) return;
+    if (event?.pointerId != null && ui.detailPhotoBackgroundLayer?.hasPointerCapture?.(event.pointerId)) ui.detailPhotoBackgroundLayer.releasePointerCapture?.(event.pointerId);
+    state.detailBackgroundDrag = null;
+  }
+  window.linGallerySetDetailPhotoBackground = (index) => {
+    applyDetailPhotoBackground(index);
+    if (ui.detailPhotoBackgroundSwitcher) ui.detailPhotoBackgroundSwitcher.hidden = true;
+    ui.detailPhotoBackgroundToggle?.setAttribute('aria-expanded', 'false');
+  };
+  function renderDetailPhotoBackgroundOptions() {
+    if (!ui.detailPhotoBackgroundOptions) return;
+    ui.detailPhotoBackgroundOptions.replaceChildren();
+    DETAIL_PHOTO_BACKGROUNDS.forEach((photo, index) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'detail-photo-background-option';
+      button.dataset.detailPhotoBackgroundIndex = String(index);
+      button.setAttribute('aria-pressed', String(index === detailPhotoBackgroundIndex));
+      button.innerHTML = `<span class="detail-photo-background-thumb"><img src="${photo.src}" alt="" loading="lazy" /></span><span class="detail-photo-background-option-copy"><strong></strong><small></small></span>`;
+      button.querySelector('strong').textContent = photo.title;
+      button.querySelector('small').textContent = photo.meta;
+      ui.detailPhotoBackgroundOptions.appendChild(button);
+    });
+    applyDetailPhotoBackground(detailPhotoBackgroundIndex);
+  }
+  function applyHomePhotoBackground(index = homePhotoBackgroundIndex) {
+    const next = Math.max(0, Math.min(DETAIL_PHOTO_BACKGROUNDS.length - 1, Number(index) || 0));
+    homePhotoBackgroundIndex = next;
+    localStorage.setItem('lin-gallery-home-photo-background-index', String(next));
+    const photo = DETAIL_PHOTO_BACKGROUNDS[next];
+    const settings = homePhotoBackgroundSettings[next] || { x: 50, y: 50, zoom: 1.2 };
+    const layer = ui.homePhotoBackgroundLayer;
+    if (layer) {
+      layer.style.backgroundImage = `url("${photo.src}")`;
+      layer.style.backgroundPosition = `${settings.x}% ${settings.y}%`;
+      layer.style.backgroundSize = `${settings.zoom * 100}%`;
+      layer.classList.toggle('is-active', backgroundContext === 'home' && backgroundMode === 'photo');
+    }
+    ui.homePhotoBackgroundOptions?.querySelectorAll('[data-home-photo-background-index]').forEach((button) => {
+      const active = Number(button.dataset.homePhotoBackgroundIndex) === next;
+      button.classList.toggle('is-selected', active); button.setAttribute('aria-pressed', String(active));
+    });
+    if (ui.homePhotoBackgroundX) ui.homePhotoBackgroundX.value = settings.x;
+    if (ui.homePhotoBackgroundY) ui.homePhotoBackgroundY.value = settings.y;
+    if (ui.homePhotoBackgroundZoom) ui.homePhotoBackgroundZoom.value = settings.zoom;
+    document.querySelector('[data-home-photo-background-x-value]')?.replaceChildren(`${settings.x}%`);
+    document.querySelector('[data-home-photo-background-y-value]')?.replaceChildren(`${settings.y}%`);
+    document.querySelector('[data-home-photo-background-zoom-value]')?.replaceChildren(`${Number(settings.zoom).toFixed(2)}×`);
+  }
+  function renderHomePhotoBackgroundOptions() {
+    if (!ui.homePhotoBackgroundOptions) return;
+    ui.homePhotoBackgroundOptions.replaceChildren();
+    DETAIL_PHOTO_BACKGROUNDS.forEach((photo, index) => {
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'detail-photo-background-option'; button.dataset.homePhotoBackgroundIndex = String(index); button.setAttribute('aria-pressed', String(index === homePhotoBackgroundIndex));
+      button.innerHTML = `<span class="detail-photo-background-thumb"><img src="${photo.src}" alt="" loading="lazy" /></span><span class="detail-photo-background-option-copy"><strong></strong><small></small></span>`;
+      button.querySelector('strong').textContent = photo.title; button.querySelector('small').textContent = photo.meta;
+      ui.homePhotoBackgroundOptions.appendChild(button);
+    });
+    applyHomePhotoBackground(homePhotoBackgroundIndex);
+  }
+  function updateHomePhotoBackgroundSetting(key, value) {
+    const settings = homePhotoBackgroundSettings[homePhotoBackgroundIndex] || (homePhotoBackgroundSettings[homePhotoBackgroundIndex] = { x: 50, y: 50, zoom: 1.2 });
+    settings[key] = key === 'zoom' ? Number(value) : Math.round(Number(value));
+    localStorage.setItem('lin-gallery-home-photo-background-settings', JSON.stringify(homePhotoBackgroundSettings));
+    applyHomePhotoBackground(homePhotoBackgroundIndex);
+  }
+  function resetHomePhotoBackground() { homePhotoBackgroundSettings[homePhotoBackgroundIndex] = { x: 50, y: 50, zoom: 1.2 }; localStorage.setItem('lin-gallery-home-photo-background-settings', JSON.stringify(homePhotoBackgroundSettings)); applyHomePhotoBackground(homePhotoBackgroundIndex); }
+  function beginHomePhotoBackgroundDrag(event) {
+    if (!ui.homePhotoBackgroundLayer?.classList.contains('is-editing')) return;
+    if (event.target.closest?.('button, input, textarea, select, a, .background-switcher')) return;
+    const settings = homePhotoBackgroundSettings[homePhotoBackgroundIndex] || { x: 50, y: 50, zoom: 1.2 };
+    state.homeBackgroundDrag = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, start: { ...settings } };
+    try { ui.homePhotoBackgroundLayer.setPointerCapture?.(event.pointerId); } catch (_) { /* capture may belong to the transparent panel */ } event.preventDefault();
+  }
+  function moveHomePhotoBackgroundDrag(event) {
+    if (!state.homeBackgroundDrag) return; const rect = ui.homePhotoBackgroundLayer.getBoundingClientRect(); if (!rect.width || !rect.height) return;
+    const start = state.homeBackgroundDrag.start;
+    updateHomePhotoBackgroundSetting('x', clamp(start.x - ((event.clientX - state.homeBackgroundDrag.startX) / rect.width) * 100, 0, 100));
+    updateHomePhotoBackgroundSetting('y', clamp(start.y - ((event.clientY - state.homeBackgroundDrag.startY) / rect.height) * 100, 0, 100));
+  }
+  function endHomePhotoBackgroundDrag(event) { if (!state.homeBackgroundDrag) return; if (event?.pointerId != null && ui.homePhotoBackgroundLayer?.hasPointerCapture?.(event.pointerId)) ui.homePhotoBackgroundLayer.releasePointerCapture?.(event.pointerId); state.homeBackgroundDrag = null; }
   function persistBackgroundSettings() {
     if (backgroundContext === 'detail') {
       localStorage.setItem('lin-gallery-detail-color-bends', JSON.stringify(detailColorBendsSettings));
@@ -229,7 +398,9 @@
     const liquidHost = detail ? ui.detailLiquid : document.querySelector('[data-gradient-waves]');
     const bendsHost = detail ? ui.detailColorBends : ui.bendsHost;
     const wavesHost = detail ? ui.detailGradientWaves : ui.wavesHost;
-    if (mode === 'liquid' && !detail) window.linGradientWaves?.init(liquidHost, activeBackgroundPalette(), window.THREE).catch?.(() => {});
+    ui.homePhotoBackgroundLayer?.classList.toggle('is-active', !detail && mode === 'photo');
+    if (mode === 'photo' && !detail) { applyHomePhotoBackground(homePhotoBackgroundIndex); return; }
+    if (mode === 'liquid' && !detail) { const palette = activeBackgroundPalette(); window.linGradientWaves?.init(liquidHost, { ...palette, resolution: Math.min(Number(palette.resolution) || .5, .42), pressure: Math.min(Number(palette.pressure) || 32, 16), viscousIterations: Math.min(Number(palette.viscousIterations) || 32, 16) }, window.THREE).catch?.(() => {}); }
     if (mode === 'color-bends') window.linColorBendsBackground?.init(bendsHost, activeColorBendsSettings());
     if (mode === 'gradient-waves') window.linGradientWavesBackground?.init(wavesHost, activeGradientWavesSettings());
     if (mode === 'aurora') window.linAuroraBackground?.init(detail ? ui.detailAurora : document.querySelector('[data-gradient-waves]'), activeAuroraPalette());
@@ -239,7 +410,7 @@
     if (mode === 'aurora') applyAuroraPalette();
   }
   function applyBackgroundMode(mode, context = backgroundContext) {
-    const next = ['liquid', 'color-bends', 'aurora', 'gradient-waves'].includes(mode) ? mode : 'liquid';
+    const next = ['liquid', 'color-bends', 'aurora', 'gradient-waves', 'photo'].includes(mode) ? mode : 'liquid';
     backgroundContext = context === 'detail' ? 'detail' : 'home';
     if (backgroundContext === 'detail') { detailBackgroundMode = next; localStorage.setItem('lin-gallery-detail-background-mode', next); }
     else { backgroundMode = next; localStorage.setItem('lin-gallery-home-background-mode', next); localStorage.setItem('lin-gallery-background-mode', next); }
@@ -249,7 +420,13 @@
     document.querySelectorAll('[data-background-section]').forEach((section) => { section.hidden = section.dataset.backgroundSection !== current; });
     ui.backgroundModes?.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.backgroundMode === backgroundMode)));
     ui.detailBackgroundModes?.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.detailBackgroundMode === detailBackgroundMode)));
+    setBackgroundSwitcherFamily(next === 'photo' ? 'photo' : 'dynamic');
     renderActiveBackground();
+  }
+  function setBackgroundSwitcherFamily(family) {
+    const next = family === 'photo' ? 'photo' : 'dynamic';
+    ui.backgroundFamilies?.forEach((button) => { const active = button.dataset.backgroundFamily === next; button.setAttribute('aria-selected', String(active)); button.classList.toggle('is-active', active); });
+    ui.backgroundFamilyGroups?.forEach((group) => { group.hidden = group.dataset.backgroundFamilyGroup !== next; });
   }
   window.linGallerySetDetailBackground = (mode) => applyBackgroundMode(mode, 'detail');
   function applyColorBendsSettings() { const s = activeColorBendsSettings(); [[ui.bendsColor1, s.colors[0]], [ui.bendsColor2, s.colors[1]], [ui.bendsColor3, s.colors[2]]].forEach(([input, value]) => { if (input) input.value = value; }); const controls = [['bendsRotation','rotation'],['bendsAutoRotate','autoRotate'],['bendsSpeed','speed'],['bendsScale','scale'],['bendsFrequency','frequency'],['bendsWarp','warpStrength'],['bendsMouse','mouseInfluence'],['bendsParallax','parallax'],['bendsNoise','noise'],['bendsIterations','iterations'],['bendsIntensity','intensity'],['bendsBand','bandWidth']]; controls.forEach(([control,key])=>{ if(ui[control]) ui[control].value=s[key]; const out=document.querySelector(`[data-${control.replace(/^bends/,'bends-')}-value]`); if(out&&ui[control]) out.textContent=Number(ui[control].value).toFixed(Number(ui[control].step)<.1?2:1); }); window.linColorBendsBackground?.update(s); }
@@ -300,7 +477,7 @@
     if (ui.bgBounce) ui.bgBounce.checked = palette.bounceEdges === true;
     if (ui.bgAutoAnimate) ui.bgAutoAnimate.checked = palette.autoAnimate !== false;
     if (ui.bgViscous) ui.bgViscous.checked = palette.viscousEnabled !== false;
-    window.linGradientWaves?.update({ colors: [palette.color1, palette.color2, palette.color3], mouseForce: palette.mouseForce, cursorSize: palette.cursorSize, resolution: palette.resolution, autoSpeed: palette.autoSpeed, autoIntensity: palette.autoIntensity, pressure: palette.pressure, bounceEdges: palette.bounceEdges, autoAnimate: palette.autoAnimate, viscousEnabled: palette.viscousEnabled, viscousCoef: palette.viscousCoef, viscousIterations: palette.viscousIterations, dt: palette.dt, BFECC: palette.bfecc, backgroundColor: palette.backgroundColor, lightMode: palette.lightMode });
+    window.linGradientWaves?.update({ colors: [palette.color1, palette.color2, palette.color3], mouseForce: palette.mouseForce, cursorSize: palette.cursorSize, resolution: Math.min(Number(palette.resolution) || .5, .42), autoSpeed: palette.autoSpeed, autoIntensity: palette.autoIntensity, pressure: Math.min(Number(palette.pressure) || 32, 16), bounceEdges: palette.bounceEdges, autoAnimate: palette.autoAnimate, viscousEnabled: palette.viscousEnabled, viscousCoef: palette.viscousCoef, viscousIterations: Math.min(Number(palette.viscousIterations) || 32, 16), dt: palette.dt, BFECC: palette.bfecc, backgroundColor: palette.backgroundColor, lightMode: palette.lightMode });
     applyAuroraPalette();
   }
 
@@ -514,8 +691,10 @@
   function canvasTexture(THREE, card, index) {
     const person = currentPerson();
     const textureCanvas = document.createElement('canvas');
-    textureCanvas.width = 720; textureCanvas.height = 1080;
+    const textureScale = 1.25;
+    textureCanvas.width = Math.round(720 * textureScale); textureCanvas.height = Math.round(1080 * textureScale);
     const ctx = textureCanvas.getContext('2d');
+    ctx.scale(textureScale, textureScale);
     const applyCardMask = () => {
       const radius = 56;
       ctx.save();
@@ -542,6 +721,10 @@
       applyCardMask();
     }
     const texture = new THREE.CanvasTexture(textureCanvas);
+    texture.generateMipmaps = false;
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.anisotropy = Math.min(4, sceneState.renderer?.capabilities?.getMaxAnisotropy?.() || 1);
     if ('colorSpace' in texture && THREE.SRGBColorSpace) texture.colorSpace = THREE.SRGBColorSpace;
     if (card.image) {
       const image = new Image();
@@ -675,7 +858,8 @@
     sceneState.THREE = THREE;
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
     if ('outputColorSpace' in renderer && THREE.SRGBColorSpace) renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    const mobileDevice = window.innerWidth < 700;
+    renderer.setPixelRatio(1);
     renderer.setClearColor(0x000000, 0);
     sceneState.renderer = renderer;
     const scene = new THREE.Scene();
@@ -684,7 +868,7 @@
     const ambient = new THREE.AmbientLight(0xffffff, 2.2); scene.add(ambient);
     const backgroundHost = document.querySelector('[data-gradient-waves]');
     const palette = activeBackgroundPalette();
-    window.linGradientWaves?.init(backgroundHost, { colors: [palette.color1, palette.color2, palette.color3], mouseForce: palette.mouseForce, cursorSize: palette.cursorSize, resolution: palette.resolution, autoSpeed: palette.autoSpeed, autoIntensity: palette.autoIntensity, pressure: palette.pressure, bounceEdges: palette.bounceEdges, autoAnimate: palette.autoAnimate, viscousEnabled: palette.viscousEnabled, viscousCoef: palette.viscousCoef, viscousIterations: palette.viscousIterations, dt: palette.dt, BFECC: palette.bfecc, backgroundColor: palette.backgroundColor, lightMode: palette.lightMode }, THREE).catch(() => {});
+    if (activeBackgroundMode() === 'liquid') window.linGradientWaves?.init(backgroundHost, { colors: [palette.color1, palette.color2, palette.color3], mouseForce: palette.mouseForce, cursorSize: palette.cursorSize, resolution: Math.min(Number(palette.resolution) || .5, .42), autoSpeed: palette.autoSpeed, autoIntensity: palette.autoIntensity, pressure: Math.min(Number(palette.pressure) || 32, 16), bounceEdges: palette.bounceEdges, autoAnimate: palette.autoAnimate, viscousEnabled: palette.viscousEnabled, viscousCoef: palette.viscousCoef, viscousIterations: Math.min(Number(palette.viscousIterations) || 32, 16), dt: palette.dt, BFECC: palette.bfecc, backgroundColor: palette.backgroundColor, lightMode: palette.lightMode }, THREE).catch(() => {});
     if (activeBackgroundMode() === 'color-bends') window.linColorBendsBackground?.init(ui.bendsHost, colorBendsSettings);
     if (activeBackgroundMode() === 'gradient-waves') window.linGradientWavesBackground?.init(ui.wavesHost, gradientWavesSettings);
     applyColorBendsSettings(); applyGradientWavesSettings();
@@ -755,6 +939,7 @@
     sceneState.floor = floor;
 
     function render(now) {
+      if (state.scenePaused) { requestAnimationFrame(render); return; }
       const dt = Math.min((now - state.last) / 1000, .05); state.last = now;
       if (state.auto && !state.down && !state.activePanel) state.target += dt * .11;
       normalizeOrbitProgress();
@@ -821,12 +1006,20 @@
       frame.dataset.detailOpen = String(open);
       if (shell) shell.dataset.detailOpen = String(open);
       backgroundContext = open ? 'detail' : 'home';
+      applyHomePhotoBackground(homePhotoBackgroundIndex);
       ui.detailPanel?.setAttribute('data-detail-background-mode', 'aurora');
       if (open) {
-        window.linAuroraBackground?.init(ui.detailAurora, activeAuroraPalette());
-        window.linAuroraBackground?.setVisible(true);
+        state.scenePaused = true;
+        window.linGradientWaves?.setVisible?.(false);
+        window.linColorBendsBackground?.setVisible?.(false);
+        window.linGradientWavesBackground?.setVisible?.(false);
+        window.linAuroraBackground?.setVisible?.(false);
+        applyDetailPhotoBackground(detailPhotoBackgroundIndex);
       } else {
+        state.scenePaused = false;
+        ui.detailPhotoBackgroundLayer?.classList.remove('is-active');
         window.linAuroraBackground?.setVisible(false);
+        renderActiveBackground();
       }
       ui.backgroundEditor?.classList.toggle('is-detail-open', false);
     }
@@ -904,6 +1097,11 @@
       stopPhotoCarousel();
       setBackgroundEditorOpen(false);
       if (ui.detailBackgroundSwitcher) { ui.detailBackgroundSwitcher.hidden = true; ui.detailBackgroundSwitchOpen?.setAttribute('aria-expanded', 'false'); }
+      if (ui.detailPhotoBackgroundSwitcher) { ui.detailPhotoBackgroundSwitcher.hidden = true; ui.detailPhotoBackgroundToggle?.setAttribute('aria-expanded', 'false'); }
+      if (ui.detailPhotoBackgroundEditor) { ui.detailPhotoBackgroundEditor.hidden = true; ui.detailPhotoBackgroundEditorToggle?.setAttribute('aria-expanded', 'false'); }
+      ui.detailPhotoBackgroundLayer?.classList.remove('is-editing');
+      if (ui.homePhotoBackgroundEditor) { ui.homePhotoBackgroundEditor.hidden = true; ui.homePhotoBackgroundEditorToggle?.setAttribute('aria-expanded', 'false'); }
+      ui.homePhotoBackgroundLayer?.classList.remove('is-editing');
       window.clearTimeout(photoImageCleanupTimer);
       photoImageCleanupTimer = null;
       ui.menuButton.setAttribute('aria-expanded', 'false');
@@ -1561,9 +1759,59 @@
     ui.themeToggle?.addEventListener('click', () => applyTheme(isDarkTheme() ? 'light' : 'dark'));
     ui.backgroundOpenButtons.forEach((button) => button.addEventListener('click', () => toggleBackgroundEditor()));
     ui.backgroundSwitchOpen?.addEventListener('click', () => { const willOpen = ui.backgroundSwitcher.hidden; ui.backgroundSwitcher.hidden = !willOpen; ui.backgroundSwitchOpen.setAttribute('aria-expanded', String(willOpen)); });
+    ui.backgroundFamilies?.forEach((button) => button.addEventListener('click', () => setBackgroundSwitcherFamily(button.dataset.backgroundFamily)));
     ui.backgroundModes?.forEach((button) => button.addEventListener('click', () => { applyBackgroundMode(button.dataset.backgroundMode, 'home'); if (ui.backgroundSwitcher) ui.backgroundSwitcher.hidden = true; }));
+    renderHomePhotoBackgroundOptions();
+    ui.homePhotoBackgroundLayer?.addEventListener('pointerdown', beginHomePhotoBackgroundDrag);
+    ui.homePhotoBackgroundLayer?.addEventListener('pointermove', moveHomePhotoBackgroundDrag);
+    ui.homePhotoBackgroundLayer?.addEventListener('pointerup', endHomePhotoBackgroundDrag);
+    ui.homePhotoBackgroundLayer?.addEventListener('pointercancel', endHomePhotoBackgroundDrag);
+    ui.homePhotoBackgroundLayer?.addEventListener('lostpointercapture', endHomePhotoBackgroundDrag);
+    ui.detailPanel?.addEventListener('pointerdown', beginDetailPhotoBackgroundDrag, true);
+    ui.detailPanel?.addEventListener('pointermove', moveDetailPhotoBackgroundDrag, true);
+    ui.detailPanel?.addEventListener('pointerup', endDetailPhotoBackgroundDrag, true);
+    ui.detailPanel?.addEventListener('pointercancel', endDetailPhotoBackgroundDrag, true);
+    document.addEventListener('pointerdown', (event) => { if (backgroundContext === 'home' && backgroundMode === 'photo') beginHomePhotoBackgroundDrag(event); }, true);
+    document.addEventListener('pointermove', (event) => { if (backgroundContext === 'home' && backgroundMode === 'photo') moveHomePhotoBackgroundDrag(event); }, true);
+    document.addEventListener('pointerup', endHomePhotoBackgroundDrag, true);
+    ui.homePhotoBackgroundEditorToggle?.addEventListener('click', () => { const open = ui.homePhotoBackgroundEditor?.hidden; if (!ui.homePhotoBackgroundEditor) return; ui.homePhotoBackgroundEditor.hidden = !open; ui.homePhotoBackgroundEditorToggle.setAttribute('aria-expanded', String(open)); ui.homePhotoBackgroundLayer?.classList.toggle('is-editing', Boolean(open)); });
+    ui.homePhotoBackgroundX?.addEventListener('input', () => updateHomePhotoBackgroundSetting('x', ui.homePhotoBackgroundX.value));
+    ui.homePhotoBackgroundY?.addEventListener('input', () => updateHomePhotoBackgroundSetting('y', ui.homePhotoBackgroundY.value));
+    ui.homePhotoBackgroundZoom?.addEventListener('input', () => updateHomePhotoBackgroundSetting('zoom', ui.homePhotoBackgroundZoom.value));
+    ui.homePhotoBackgroundReset?.addEventListener('click', resetHomePhotoBackground);
+    document.addEventListener('click', (event) => { const button = event.target.closest?.('[data-home-photo-background-index]'); if (!button) return; applyBackgroundMode('photo', 'home'); applyHomePhotoBackground(Number(button.dataset.homePhotoBackgroundIndex)); setBackgroundSwitcherFamily('photo'); });
+    renderDetailPhotoBackgroundOptions();
+    ui.detailPhotoBackgroundLayer?.addEventListener('pointerdown', beginDetailPhotoBackgroundDrag);
+    ui.detailPhotoBackgroundLayer?.addEventListener('pointermove', moveDetailPhotoBackgroundDrag);
+    ui.detailPhotoBackgroundLayer?.addEventListener('pointerup', endDetailPhotoBackgroundDrag);
+    ui.detailPhotoBackgroundLayer?.addEventListener('pointercancel', endDetailPhotoBackgroundDrag);
+    ui.detailPhotoBackgroundLayer?.addEventListener('lostpointercapture', endDetailPhotoBackgroundDrag);
+    ui.detailPhotoBackgroundEditorToggle?.addEventListener('click', () => {
+      const open = ui.detailPhotoBackgroundEditor?.hidden;
+      if (!ui.detailPhotoBackgroundEditor) return;
+      ui.detailPhotoBackgroundEditor.hidden = !open;
+      ui.detailPhotoBackgroundEditorToggle.setAttribute('aria-expanded', String(open));
+      ui.detailPhotoBackgroundLayer?.classList.toggle('is-editing', Boolean(open));
+    });
+    ui.detailPhotoBackgroundX?.addEventListener('input', () => updateDetailPhotoBackgroundSetting('x', ui.detailPhotoBackgroundX.value));
+    ui.detailPhotoBackgroundY?.addEventListener('input', () => updateDetailPhotoBackgroundSetting('y', ui.detailPhotoBackgroundY.value));
+    ui.detailPhotoBackgroundZoom?.addEventListener('input', () => updateDetailPhotoBackgroundSetting('zoom', ui.detailPhotoBackgroundZoom.value));
+    ui.detailPhotoBackgroundReset?.addEventListener('click', resetDetailPhotoBackground);
+    ui.detailPhotoBackgroundToggle?.addEventListener('click', () => {
+      const willOpen = ui.detailPhotoBackgroundSwitcher?.hidden;
+      if (!ui.detailPhotoBackgroundSwitcher) return;
+      ui.detailPhotoBackgroundSwitcher.hidden = !willOpen;
+      ui.detailPhotoBackgroundToggle.setAttribute('aria-expanded', String(willOpen));
+    });
     ui.detailBackgroundSwitchOpen?.addEventListener('click', () => { const willOpen = ui.detailBackgroundSwitcher.hidden; ui.detailBackgroundSwitcher.hidden = !willOpen; ui.detailBackgroundSwitchOpen.setAttribute('aria-expanded', String(willOpen)); });
     ui.detailBackgroundModes?.forEach((button) => button.addEventListener('click', () => { applyBackgroundMode(button.dataset.detailBackgroundMode, 'detail'); if (ui.detailBackgroundSwitcher) ui.detailBackgroundSwitcher.hidden = true; }));
+    document.addEventListener('click', (event) => {
+      const button = event.target.closest?.('[data-detail-photo-background-index]');
+      if (!button) return;
+      applyDetailPhotoBackground(Number(button.dataset.detailPhotoBackgroundIndex));
+      if (ui.detailPhotoBackgroundSwitcher) ui.detailPhotoBackgroundSwitcher.hidden = true;
+      ui.detailPhotoBackgroundToggle?.setAttribute('aria-expanded', 'false');
+    }, true);
     document.addEventListener('click', (event) => { const button = event.target.closest?.('[data-detail-background-mode]'); if (!button) return; applyBackgroundMode(button.dataset.detailBackgroundMode, 'detail'); if (ui.detailBackgroundSwitcher) ui.detailBackgroundSwitcher.hidden = true; }, true);
     ui.backgroundClose?.addEventListener('click', () => setBackgroundEditorOpen(false));
     [[ui.bgColor1, 'color1'], [ui.bgColor2, 'color2'], [ui.bgColor3, 'color3']].forEach(([input, key]) => input?.addEventListener('input', () => { const palette = activeBackgroundPalette(); palette[key] = input.value; localStorage.setItem(backgroundContext === 'detail' ? 'lin-gallery-detail-background' : 'lin-gallery-background', JSON.stringify(backgroundContext === 'detail' ? detailBackgroundPalettes : backgroundPalettes)); applyBackgroundPalette(); }));

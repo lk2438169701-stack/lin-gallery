@@ -175,7 +175,8 @@ function LiquidEther({
       }
       init(container) {
         this.container = container;
-        this.pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+        // Keep the fluid simulation at CSS resolution; this is the main GPU cost on high-DPI displays.
+        this.pixelRatio = 1;
         this.resize();
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         this.renderer.autoClear = false;
@@ -1068,7 +1069,11 @@ function LiquidEther({
       }
       loop() {
         if (!this.running) return; // safety
-        this.render();
+        const now = performance.now();
+        if (!this._lastFrame || now - this._lastFrame >= (1000 / 30)) {
+          this._lastFrame = now;
+          this.render();
+        }
         rafRef.current = requestAnimationFrame(this._loop);
       }
       start() {
